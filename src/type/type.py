@@ -26,6 +26,10 @@ AddType = Union[CommandType, Dict[str, ProcessInfo]]
 class RemoveType(TypedDict, CommandType):
     process: str
 
+class RenameType(TypedDict, CommandType):
+    process: str
+    new_id: str
+
 class StopType(TypedDict, CommandType):
     flag: str
 

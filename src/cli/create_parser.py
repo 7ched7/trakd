@@ -43,6 +43,11 @@ def create_parser() -> argparse.Namespace:
     rm_parser.add_argument('id', help='id of the tracked process to stop')
     rm_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
 
+    rename_parser = subparsers.add_parser('rename', help='rename tracking id of a process')
+    rename_parser.add_argument('id', help='current tracking id')
+    rename_parser.add_argument('new_id', type=len_check, help='new tracking id')
+    rename_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
+
     ps_parser = subparsers.add_parser('ps', help='show status of tracked processes')
     ps_parser.add_argument('-a', '--all', action='store_true', help='show both currently tracked and stopped processes')
     ps_parser.add_argument('-d', '--detailed', action='store_true', help='show detailed information about tracked processes')

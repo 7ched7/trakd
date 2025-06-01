@@ -7,14 +7,15 @@ from daemon import daemon
 from .add_handler import add_handler
 from .stop_handler import stop_handler
 from .rm_handler import rm_handler
+from .rename_handler import rename_handler
 from .ps_handler import ps_handler
 from .update_handler import update_handler
 from .common import stop_event
 from helper import get_config
 from typing import Union
-from type import AddType, RemoveType, StopType, PsType, UpdateType
+from type import AddType, RemoveType, RenameType, StopType, PsType, UpdateType
 
-def convert_json(data: str) -> Union[AddType, RemoveType, StopType, PsType, UpdateType, bool]:
+def convert_json(data: str) -> Union[AddType, RemoveType, RenameType, StopType, PsType, UpdateType, bool]:
     try:
         json_data = json.loads(data)
         return json_data
@@ -36,6 +37,8 @@ def handle_client(conn: socket.socket, addr: tuple[str, int]) -> None:
                 add_handler(conn, json_data)
             elif json_data['command'] == 'rm':
                 rm_handler(conn, json_data)
+            elif json_data['command'] == 'rename':
+                rename_handler(conn, json_data)
             elif json_data['command'] == 'stop':
                 stop_handler(conn, json_data)
             elif json_data['command'] == 'ps':

@@ -1,1 +1,1 @@
-from type.type import ConfigType, LogType, ProcessInfo, AddType, RemoveType, StopType, PsType, UpdateType
+from type.type import ConfigType, LogType, ProcessInfo, AddType, RemoveType, RenameType, StopType, PsType, UpdateType
