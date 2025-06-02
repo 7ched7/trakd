@@ -34,6 +34,8 @@ def create_parser() -> argparse.Namespace:
     stop_parser.add_argument('-f', '--force', action='store_true', help='force stop')
     stop_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
 
+    status_parser = subparsers.add_parser('status', help='show the status of the server')
+
     add_parser = subparsers.add_parser('add', help='start tracking a process')
     add_parser.add_argument('process', help='process name or pid to track')
     add_parser.add_argument('-n', '--name', type=len_check, help='add tag')
