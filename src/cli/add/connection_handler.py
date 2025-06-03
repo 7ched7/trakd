@@ -1,12 +1,15 @@
 import select
 import time
-import socket
 import sys
 from config import logger
 from helper import send_data
-from .common import event, queue
+import cli.add.common as common
 
-def connection_handler(client_socket: socket.socket) -> None:        
+def connection_handler() -> None:     
+    client_socket = common.client_socket
+    queue = common.queue
+    event = common.event
+
     try:
         while not event.is_set():
             ready_to_read, _, _ = select.select([client_socket], [], [], 1)
