@@ -52,6 +52,7 @@ def create_parser() -> argparse.Namespace:
     report_parser = subparsers.add_parser('report', help='show report')
     report_parser.add_argument('--daily', default=True, action='store_true', help='show daily report')
     report_parser.add_argument('--weekly', action='store_true', help='show weekly report')
+    report_parser.add_argument('--monthly', action='store_true', help='show monthly report')
 
     reset_parser = subparsers.add_parser('reset', help='reset program')
     reset_parser.add_argument('target', choices=['all', 'config', 'logs'], help='what to reset')
