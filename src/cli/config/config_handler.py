@@ -18,11 +18,11 @@ def validate_args(args: Namespace) -> None:
         if args.limit_max_process >= 24:
             args.limit_max_process = 24
             if args.verbose:
-                logger.info('The specified limit is too high, it has been automatically set to the maximum limit of 24')
+                logger.warning('The specified limit is too high, it has been automatically set to the maximum limit of 24')
         elif args.limit_max_process < 1:
             args.limit_max_process = 1
             if args.verbose:
-                logger.info('The specified limit cannot be 0 or a negative value, it has been automatically set to the minimum valid limit of 1')
+                logger.warning('The specified limit cannot be 0 or a negative value, it has been automatically set to the minimum valid limit of 1')
 
 def handle_set(args: Namespace) -> None:
     try:

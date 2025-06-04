@@ -21,8 +21,8 @@ def create_socket_connection() -> socket.socket:
     except socket.gaierror:
         logger.error(f'Address-related error connecting to {host}:{port}')
         sys.exit(1)
-    except socket.error as e:
-        logger.error(f'Socket error occurred: {e} - There may be a problem with the host ip address and port configuration')
+    except socket.error:
+        logger.error(f'There may be a problem with the host ip address and port configuration')
         sys.exit(1)
 
 def send_data(client_socket: socket.socket, data: Union[str, dict], wait_for_response: bool=True, event: Event=None) -> Optional[str]:

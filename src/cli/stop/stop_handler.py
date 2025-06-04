@@ -12,10 +12,10 @@ def stop_handler(args: Namespace) -> None:
         if data == 'ok' and args.verbose:
             logger.info('Stopping the server')
         elif data == 'error':
-            raise Exception('Server stop failed: there are still processes being tracked')
+            raise Exception('There are still processes being tracked')
 
     except Exception as e:
-        logger.error(f'An error occurred: {e}')
+        logger.error(e)
         sys.exit(1)
     finally:
         client_socket.close()

@@ -21,11 +21,11 @@ def notify_socket(args: Namespace) -> tuple[socket.socket, str, datetime]:
         
         process_name = process_info['name']    
         start_time = datetime.now()
-        tag = args.name or secrets.token_hex(6)
+        id = args.name or secrets.token_hex(6)
 
         json_data = {
             'command': args.command,
-            tag: {
+            id: {
                 'process_name': process_name,
                 'pid': process_info['pid'],
                 'track_pid': os.getpid(),
@@ -39,8 +39,8 @@ def notify_socket(args: Namespace) -> tuple[socket.socket, str, datetime]:
 
         if received_data == 'ok' and args.verbose:
             logger.info(f'Tracking started: {process_name}')
-        elif received_data == 'duplicate tag':
-            raise Exception(f"Tag '{args.name}' is already in use")
+        elif received_data == 'duplicate id':
+            raise Exception(f"Id '{args.name}' is already in use")
         elif received_data == 'duplicate process':
             raise Exception(f'Already tracking {process_name}')
         elif received_data == 'limit':
@@ -49,6 +49,6 @@ def notify_socket(args: Namespace) -> tuple[socket.socket, str, datetime]:
 
         return client_socket, process_name, start_time
     except Exception as e:
-        logger.error(f'An error occured: {e}')
+        logger.error(e)
         client_socket.close()
         sys.exit(1)
