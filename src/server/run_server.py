@@ -66,7 +66,7 @@ def run_server(verbose: str) -> None:
     except OSError as e:
         if e.errno == 98:  
             logger.error('Server is already up and running')
-        elif e.errno == 13:
+        elif e.errno == 13 or e.errno == 99:
             logger.error('An error occurred: There may be a problem with the host IP address and port configuration or lack of permissions')
         else:
             logger.error(f'An error occurred: {e}')
