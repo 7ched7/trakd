@@ -16,7 +16,7 @@ def rm_handler(args: Namespace) -> None:
             raise Exception(f'{args.id} is not being tracked')
     
     except Exception as e:
-        logger.error(f'An error occurred: {e}')
+        logger.error(e)
         sys.exit(1)
     finally:
         client_socket.close()

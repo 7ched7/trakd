@@ -6,7 +6,7 @@ def len_check(s: str) -> str:
     max_length = 24
     if len(s) >= min_length and len(s) <= max_length:
         return s
-    raise argparse.ArgumentTypeError(f'tag length must be between {min_length} and {max_length}')
+    raise argparse.ArgumentTypeError(f'id length must be between {min_length} and {max_length}')
 
 def create_parser() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -38,7 +38,7 @@ def create_parser() -> argparse.Namespace:
 
     add_parser = subparsers.add_parser('add', help='start tracking a process')
     add_parser.add_argument('process', help='process name or pid to track')
-    add_parser.add_argument('-n', '--name', type=len_check, help='add tag')
+    add_parser.add_argument('-n', '--name', type=len_check, help='add custom tracking id')
     add_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
 
     rm_parser = subparsers.add_parser('rm', help='stop tracking a process')
