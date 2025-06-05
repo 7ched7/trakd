@@ -12,20 +12,20 @@ def add_handler(conn: socket.socket, json_data: AddType) -> None:
         conn.send(b'limit')
         return
     
-    tag = list(json_data.keys())[1] 
-    process = json_data[tag]
+    id = list(json_data.keys())[1] 
+    process = json_data[id]
 
     with lock:
         for key, value in tracked_processes.items():
             if process['process_name'].lower() == value['process_name'].lower():
                 conn.send(b'duplicate process')
                 return
-            elif key.lower() == tag.lower():
-                conn.send(b'duplicate tag')
+            elif key.lower() == id.lower():
+                conn.send(b'duplicate id')
                 return
         
-        tracked_processes[tag] = process
-        tracked_processes[tag]['conn'] = conn
+        tracked_processes[id] = process
+        tracked_processes[id]['conn'] = conn
 
     conn.send(b'ok')
     

@@ -76,5 +76,5 @@ def create_config(ip: str='127.0.0.1', port: int=10101, limit: int=8) -> ConfigT
             json.dump(data, f, indent=4)
         return data
     except Exception as e:
-        logger.error(f'An error occurred: {e}')
+        logger.error(e)
         sys.exit(1)

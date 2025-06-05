@@ -6,7 +6,7 @@ def len_check(s: str) -> str:
     max_length = 24
     if len(s) >= min_length and len(s) <= max_length:
         return s
-    raise argparse.ArgumentTypeError(f'tag length must be between {min_length} and {max_length}')
+    raise argparse.ArgumentTypeError(f'id length must be between {min_length} and {max_length}')
 
 def create_parser() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -34,14 +34,21 @@ def create_parser() -> argparse.Namespace:
     stop_parser.add_argument('-f', '--force', action='store_true', help='force stop')
     stop_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
 
+    status_parser = subparsers.add_parser('status', help='show the status of the server')
+
     add_parser = subparsers.add_parser('add', help='start tracking a process')
     add_parser.add_argument('process', help='process name or pid to track')
-    add_parser.add_argument('-n', '--name', type=len_check, help='add tag')
+    add_parser.add_argument('-n', '--name', type=len_check, help='add custom tracking id')
     add_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
 
     rm_parser = subparsers.add_parser('rm', help='stop tracking a process')
     rm_parser.add_argument('id', help='id of the tracked process to stop')
     rm_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
+
+    rename_parser = subparsers.add_parser('rename', help='rename tracking id of a process')
+    rename_parser.add_argument('id', help='current tracking id')
+    rename_parser.add_argument('new_id', type=len_check, help='new tracking id')
+    rename_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
 
     ps_parser = subparsers.add_parser('ps', help='show status of tracked processes')
     ps_parser.add_argument('-a', '--all', action='store_true', help='show both currently tracked and stopped processes')
@@ -52,6 +59,7 @@ def create_parser() -> argparse.Namespace:
     report_parser = subparsers.add_parser('report', help='show report')
     report_parser.add_argument('--daily', default=True, action='store_true', help='show daily report')
     report_parser.add_argument('--weekly', action='store_true', help='show weekly report')
+    report_parser.add_argument('--monthly', action='store_true', help='show monthly report')
 
     reset_parser = subparsers.add_parser('reset', help='reset program')
     reset_parser.add_argument('target', choices=['all', 'config', 'logs'], help='what to reset')

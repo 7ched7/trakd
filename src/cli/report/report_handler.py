@@ -4,9 +4,9 @@ from argparse import Namespace
 from tabulate import tabulate
 from helper import get_logs_dir, get_logs
 
-def get_headers(weekly: bool) -> list[str]:
+def get_headers(weekly_or_monthly: bool) -> list[str]:
     headers = ['PROCESS', 'TOTAL RUN TIME']
-    if weekly:
+    if weekly_or_monthly:
         headers.append('ACTIVE DAYS')
     return headers
 
@@ -21,15 +21,18 @@ def timedelta_to_str(td: timedelta) -> str:
     
 def report_handler(args: Namespace) -> None:
     weekly = args.weekly
+    monthly = args.monthly
     now = datetime.now()
     logs_dir = get_logs_dir()
-    headers = get_headers(weekly)
+    headers = get_headers(weekly or monthly)
     rows = []
 
-    if weekly:
+    if weekly or monthly:
         inf = {}
 
-        for day in range(7):
+        day_range = 30 if monthly else 7
+
+        for day in range(day_range):
             t = now - timedelta(days=day)
             log_file = os.path.join(logs_dir, t.strftime('%Y%m%d'))
             data = get_logs(log_file)
@@ -51,7 +54,7 @@ def report_handler(args: Namespace) -> None:
             active_days_count = len(info['active_days']) or 1  
             rows.append([process, time_inf, active_days_count])
 
-        print(f'WEEKLY REPORT - {(now - timedelta(days=6)).date()} - {now.date()}\n')
+        print(f'{"MONTHLY" if monthly else "WEEKLY"} REPORT - {(now - timedelta(days=day_range-1)).date()} - {now.date()}\n')
     else:
         log_file = os.path.join(logs_dir, now.strftime('%Y%m%d'))
         data = get_logs(log_file)

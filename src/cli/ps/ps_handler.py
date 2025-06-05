@@ -30,7 +30,7 @@ def ps_handler(args: Namespace) -> None:
 
         print(tabulate(rows, headers, tablefmt='simple', numalign='left'))
     except json.decoder.JSONDecodeError:
-        logger.error(f'An error occured: there was a problem retrieving the tracked programs data, please try again')
+        logger.error(f'There was a problem retrieving the tracked programs data, please try again')
         sys.exit(1)
     finally:
         client_socket.close()
