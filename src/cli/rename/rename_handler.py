@@ -17,9 +17,9 @@ def rename_handler(args: Namespace) -> None:
         elif data == 'error':
             raise Exception(f'{id} is not being tracked')
         elif data == 'duplicate':
-            raise Exception(f"Tag '{new_id}' is already in use")
+            raise Exception(f"Id '{new_id}' is already in use")
     except Exception as e:
-        logger.error(f'An error occurred: {e}')
+        logger.error(e)
         sys.exit(1)
     finally:
         client_socket.close()
