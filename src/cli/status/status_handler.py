@@ -21,7 +21,7 @@ def status_handler() -> None:
         print(f'TRACKED PROCESSES: {tracked_processes} { f'({running} running, {stopped} stopped)' if tracked_processes != 0 else '' } ')
 
     except json.decoder.JSONDecodeError:
-        logger.error(f'An error occured: there was a problem retrieving the status data, please try again')
+        logger.error(f'There was a problem retrieving the status data, please try again')
         sys.exit(1)
     finally:
         client_socket.close()
