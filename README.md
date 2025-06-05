@@ -11,17 +11,17 @@
 ## Installation
 1. **Download the release archive**
 ```sh
-$ wget https://github.com/cihatar/trakd/releases/download/v0.1.0/trakd-v0.1.0.tar.gz
+$ wget https://github.com/cihatar/trakd/releases/download/v0.2.0/trakd-v0.2.0.tar.gz
 ```
 
 2. **Extract the archive**
 ```sh
-$ tar -xzvf trakd-v0.1.0.tar.gz
+$ tar -xzvf trakd-v0.2.0.tar.gz
 ```
 
 3. **Install the application**
 ```sh
-$ cd trakd-v0.1.0
+$ cd trakd-v0.2.0
 $ ./install.sh
 ```
 
