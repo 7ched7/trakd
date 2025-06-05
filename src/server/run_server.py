@@ -25,7 +25,10 @@ def convert_json(data: str) -> Union[AddType, RemoveType, RenameType, StopType, 
 
 def handle_client(conn: socket.socket, addr: tuple[str, int], server_socket: socket) -> None:
     while not stop_event.is_set(): 
-        data = conn.recv(4096)
+        try:
+            data = conn.recv(4096)
+        except (ConnectionResetError, OSError):
+            break
 
         if not data:
             break

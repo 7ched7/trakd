@@ -11,7 +11,10 @@ def rm_handler(conn: socket.socket, json_data: RemoveType) -> None:
         else:
             conn.send(b'error')
             return
+    try:
+        process_conn.sendall('stop'.encode('utf-8'))
+    except OSError:
+        pass
     
-    process_conn.sendall('stop'.encode('utf-8'))
     conn.send(b'ok')
 

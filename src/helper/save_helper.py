@@ -52,9 +52,7 @@ def save_start_time(process_name: str, start_time: datetime) -> int:
 
         write_logs(log_file, data)
 
-        return len(data[process_name]) - 1
-
-def save_end_time(process_name: str, start_time: datetime, idx: int) -> None:
+def save_end_time(process_name: str, start_time: datetime) -> None:
     now = datetime.now()
     
     logs_dir = get_logs_dir()
@@ -92,6 +90,6 @@ def save_end_time(process_name: str, start_time: datetime, idx: int) -> None:
             data = get_logs(log_file)
 
             if process_name in data:
-                data[process_name][idx]['end_time'] = now.isoformat()
+                data[process_name][-1]['end_time'] = now.isoformat()
 
             write_logs(log_file, data)

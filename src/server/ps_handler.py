@@ -20,8 +20,11 @@ def ps_handler(conn: socket.socket, json_data: PsType) -> None:
                     continue
 
                 if key == 'conn':
-                    client_host, client_port = value.getpeername()
-                    data[key] = f'{client_host}/{client_port}'
+                    try:
+                        client_host, client_port = value.getpeername()
+                        data[key] = f'{client_host}/{client_port}'
+                    except OSError:
+                        data[key] = f'Disconnected'
                     continue
                 
                 data[key] = value

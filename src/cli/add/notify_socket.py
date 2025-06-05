@@ -1,6 +1,5 @@
 import sys
 import os
-import socket
 import secrets
 from datetime import datetime
 from .get_process import get_process
@@ -8,9 +7,10 @@ from helper import get_config
 from argparse import Namespace 
 from helper import create_socket_connection, send_data
 from config import logger
+import cli.add.common as common
 
-def notify_socket(args: Namespace) -> tuple[socket.socket, str, datetime]:
-    client_socket = create_socket_connection()
+def notify_socket(args: Namespace) -> None:
+    socket = create_socket_connection()
 
     try:
         process_info = get_process(args.process)
@@ -19,36 +19,38 @@ def notify_socket(args: Namespace) -> tuple[socket.socket, str, datetime]:
         if not process_info:
             raise Exception('The program is not running, please start the application')
         
-        process_name = process_info['name']    
-        start_time = datetime.now()
-        tag = args.name or secrets.token_hex(6)
+        name = process_info['name']    
+        now = datetime.now()
+        id = args.name or secrets.token_hex(6)
 
         json_data = {
             'command': args.command,
-            tag: {
-                'process_name': process_name,
+            id: {
+                'process_name': name,
                 'pid': process_info['pid'],
                 'track_pid': os.getpid(),
-                'start_time': start_time.strftime('%Y/%m/%d %H:%M:%S'),
+                'start_time': now.strftime('%Y/%m/%d %H:%M:%S'),
                 'status': 'running',
                 'conn': None
             }
         }
 
-        received_data = send_data(client_socket, json_data).lower()
+        received_data = send_data(socket, json_data).lower()
 
         if received_data == 'ok' and args.verbose:
-            logger.info(f'Tracking started: {process_name}')
+            logger.info(f'Tracking started: {name}')
         elif received_data == 'duplicate tag':
             raise Exception(f"Tag '{args.name}' is already in use")
         elif received_data == 'duplicate process':
-            raise Exception(f'Already tracking {process_name}')
+            raise Exception(f'Already tracking {name}')
         elif received_data == 'limit':
             process_word = 'process' if limit == 1 else 'processes'
             raise Exception(f'Maximum process tracking limit exceeded. You can only run up to {limit} {process_word} simultaneously')
 
-        return client_socket, process_name, start_time
+        common.client_socket = socket
+        common.process_name = name
+        common.start_time = now
     except Exception as e:
         logger.error(f'An error occured: {e}')
-        client_socket.close()
+        socket.close()
         sys.exit(1)
