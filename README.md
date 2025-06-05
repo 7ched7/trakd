@@ -69,11 +69,39 @@ $ trakd rm my_chrome_tracker
 ```
 > To stop tracking a process, you must use its `track ID` instead of the `process name` or `PID`.
 
+### Rename tracking ID
+```sh
+$ trakd rename 45f6e7c16e87 my_mongodb_tracker
+```
+> The current ID must come before the new ID in the command
+
+### Check the status
+```sh
+$ trakd status
+```
+
+* Example output
+```sh
+SERVER: running
+HOST: 127.0.0.1:10101
+TRACKED PROCESSES: 2 (1 running, 1 stopped) 
+```
+
+### Stop the server
+```sh
+$ trakd stop
+```
+> If you have programs that are still being tracked, the `stop` command will return an error. Instead, you can use the `--force` flag to stop tracking all processes and stop the server.
+```sh
+$ trakd stop -f 
+```
+
 ### View usage reports 
 ```sh
-$ trakd report           # default: daily
-$ trakd report --daily   # explicit daily report
-$ trakd report --weekly  # weekly report
+$ trakd report            # default: daily
+$ trakd report --daily    # explicit daily report
+$ trakd report --weekly   # weekly report
+$ trakd report --monthly  # monthly report
 ```
 
 * Example output
@@ -85,15 +113,6 @@ Process       Total Run Time    Active Days
 chrome        36h 12m 30s       7
 mongod        18h 45m 22s       5
 vim           8h 30m 41s        4
-```
-
-### Stop the server
-```sh
-$ trakd stop
-```
-> If you have programs that are still being tracked, the `stop` command will return an error. Instead, you can use the `--force` flag to stop tracking all processes and stop the server.
-```sh
-$ trakd stop -f 
 ```
 
 ### Manage configuration
