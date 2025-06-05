@@ -6,6 +6,7 @@ from config import logger
 from daemon import daemon
 from .add_handler import add_handler
 from .stop_handler import stop_handler
+from .status_handler import status_handler
 from .rm_handler import rm_handler
 from .rename_handler import rename_handler
 from .ps_handler import ps_handler
@@ -13,16 +14,16 @@ from .update_handler import update_handler
 from .common import stop_event
 from helper import get_config
 from typing import Union
-from type import AddType, RemoveType, RenameType, StopType, PsType, UpdateType
+from type import AddType, RemoveType, RenameType, StopType, StatusType, PsType, UpdateType
 
-def convert_json(data: str) -> Union[AddType, RemoveType, RenameType, StopType, PsType, UpdateType, bool]:
+def convert_json(data: str) -> Union[AddType, RemoveType, RenameType, StopType, StatusType, PsType, UpdateType, bool]:
     try:
         json_data = json.loads(data)
         return json_data
     except json.JSONDecodeError:
         return False
 
-def handle_client(conn: socket.socket, addr: tuple[str, int]) -> None:
+def handle_client(conn: socket.socket, addr: tuple[str, int], server_socket: socket) -> None:
     while not stop_event.is_set(): 
         data = conn.recv(4096)
 
@@ -41,6 +42,8 @@ def handle_client(conn: socket.socket, addr: tuple[str, int]) -> None:
                 rename_handler(conn, json_data)
             elif json_data['command'] == 'stop':
                 stop_handler(conn, json_data)
+            elif json_data['command'] == 'status':
+                status_handler(conn, server_socket)
             elif json_data['command'] == 'ps':
                 ps_handler(conn, json_data)
             elif json_data['command'] == 'update':
@@ -77,7 +80,7 @@ def run_server(verbose: str) -> None:
             server_socket.settimeout(1)
             conn, addr = server_socket.accept()
 
-            t = threading.Thread(target=handle_client, args=(conn, addr))
+            t = threading.Thread(target=handle_client, args=(conn, addr, server_socket))
             t.start()
             threads.append(t)
         except socket.timeout:

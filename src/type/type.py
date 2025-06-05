@@ -33,6 +33,9 @@ class RenameType(TypedDict, CommandType):
 class StopType(TypedDict, CommandType):
     flag: str
 
+class StatusType(TypedDict, CommandType):
+    pass
+
 class PsType(TypedDict, CommandType):
     all: bool
     detailed: bool
