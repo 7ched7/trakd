@@ -2,7 +2,7 @@ import os
 import sys
 import json
 import socket
-from config import logger
+from logger import logger
 from type import ConfigType
 
 def get_config_path() -> str:

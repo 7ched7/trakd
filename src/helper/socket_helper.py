@@ -2,7 +2,7 @@ import socket
 import sys
 import json
 from threading import Event
-from config import logger
+from logger import logger
 from .config_helper import get_config
 from typing import Union, Optional
 
