@@ -1,10 +1,12 @@
 from typing import Dict, List, Optional, TypedDict, Union
 from datetime import datetime
 
-class ConfigType(TypedDict):
-    host_ip_address: str
+class ProfileType(TypedDict):
+    username: str
+    ip: str
     port: int
-    max_process_limit: int
+    limit: int
+    selected: int
 
 class LogInfo(TypedDict):
     start_time: datetime

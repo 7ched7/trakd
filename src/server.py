@@ -2,7 +2,7 @@ import socket
 import threading
 import sys
 import json
-from helper import get_config
+from helper import get_current_profile
 from daemon import daemon
 from logger import logger
 from typing import Union, Dict
@@ -86,7 +86,14 @@ class Server:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         
-        ip, port, _ = get_config()
+        username, ip, port, _ = get_current_profile()
+
+        try:
+            if username is None:
+                raise Exception('Please create or switch user to start the server')
+        except Exception as e:
+            logger.error(e)
+            sys.exit(1)
 
         try:
             server_socket.bind((ip, port))
@@ -195,7 +202,7 @@ class Server:
         tracked_processes = self.tracked_processes
         lock = self.lock
 
-        _, _, limit = get_config()
+        _, _, _, limit = get_current_profile()
         if not len(tracked_processes) < limit:
             conn.send(b'limit')
             return

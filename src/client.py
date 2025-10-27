@@ -9,20 +9,26 @@ import signal
 import secrets
 import select
 import json
+import re
 from threading import Event
 from queue import Queue
 from typing import Any, Dict, Optional, Union
 from helper import (
     create_socket_connection, 
-    check_socket_running, 
-    check_ip_valid,
     send_data, 
     save_start_time, 
     save_end_time, 
-    create_config, 
-    get_config, 
     get_logs, 
-    get_logs_dir
+    get_logs_dir,
+    check_socket_running, 
+    check_ip_valid,
+    get_profiles,
+    get_current_profile, 
+    create_profile, 
+    remove_profile,
+    switch_profile,
+    rename_profile,
+    update_profile
 )
 from daemon import daemon
 from logger import logger
@@ -99,7 +105,7 @@ class Client:
 
         try:
             process_info = self._get_process(args.process)
-            _, _, limit = get_config()
+            _, _, _, limit = get_current_profile()
 
             if not process_info:
                 raise Exception('The program is not running, please start the application')
@@ -125,7 +131,7 @@ class Client:
             if received_data == 'ok' and args.verbose:
                 logger.info(f'Tracking started: {process_name}')
             elif received_data == 'duplicate id':
-                raise Exception(f"Id '{args.name}' is already in use")
+                raise Exception(f'Id \'{args.name}\' is already in use')
             elif received_data == 'duplicate process':
                 raise Exception(f'Already tracking {process_name}')
             elif received_data == 'limit':
@@ -166,6 +172,8 @@ class Client:
         - Saves start/end times at intervals
         - Puts updates into the message queue
         '''
+        
+        username, _, _, _ = get_current_profile()
 
         event = self.event
         queue = self.queue
@@ -173,8 +181,8 @@ class Client:
         process_name = self.process_name
         process_pid = self.process_pid
 
-        save_start_time(process_name, start_time)
-        save_end_time(process_name, start_time)
+        save_start_time(username, process_name, start_time)
+        save_end_time(username, process_name, start_time)
         
         save_interval = timedelta(minutes=5)
         next_save = start_time + save_interval
@@ -192,22 +200,22 @@ class Client:
 
                 if not start_time:
                     start_time = now
-                    save_start_time(process_name, start_time)
-                    save_end_time(process_name, start_time)
+                    save_start_time(username, process_name, start_time)
+                    save_end_time(username, process_name, start_time)
                     next_save = start_time + save_interval
             elif not process_info and start_time:
                 json_data = { 'command': 'update', 'status': 'stopped', process_name: None }
                 queue.put(json_data)
-                save_end_time(process_name, start_time)
+                save_end_time(username, process_name, start_time)
                 start_time = None
 
             if now >= next_save and start_time:
-                save_end_time(process_name, start_time)
+                save_end_time(username, process_name, start_time)
                 next_save = now + save_interval
             
             if event.is_set():
                 if start_time:
-                    save_end_time(process_name, start_time)
+                    save_end_time(username, process_name, start_time)
                 break
                     
             time.sleep(1)
@@ -390,11 +398,11 @@ class Client:
             data = send_data(client_socket, { 'command': 'rename', 'process': id, 'new_id': new_id }).lower()
 
             if data == 'ok' and args.verbose:
-                logger.info(f"Id '{id}' successfully renamed to '{new_id}'")
+                logger.info(f'Id \'{id}\' successfully renamed to \'{new_id}\'')
             elif data == 'error':
                 raise Exception(f'{id} is not being tracked')
             elif data == 'duplicate':
-                raise Exception(f"Id '{new_id}' is already in use")
+                raise Exception(f'Id \'{new_id}\' is already in use')
         except Exception as e:
             logger.error(e)
             sys.exit(1)
@@ -417,10 +425,20 @@ class Client:
 
             return f'{hours}h {minutes}m {seconds}s'
         
+        username, _, _, _ = get_current_profile()
+
+        try:
+            if username is None:
+                raise Exception('Please create or switch user to perform')
+        except Exception as e:
+            logger.error(e)     
+            sys.exit(1)
+            
         weekly = args.weekly
         monthly = args.monthly
         now = datetime.now()
-        logs_dir = get_logs_dir()
+
+        logs_dir = get_logs_dir(username)
 
         headers = ['PROCESS', 'TOTAL RUN TIME']
         if weekly or monthly:
@@ -454,7 +472,7 @@ class Client:
                 active_days_count = len(info['active_days']) or 1  
                 rows.append([process, time_inf, active_days_count])
 
-            print(f'{"MONTHLY" if monthly else "WEEKLY"} REPORT - {(now - timedelta(days=day_range-1)).date()} - {now.date()}\n')
+            print(f'{'MONTHLY' if monthly else 'WEEKLY'} REPORT - {(now - timedelta(days=day_range-1)).date()} - {now.date()}\n')
         else:
             log_file = os.path.join(logs_dir, now.strftime('%Y%m%d'))
             data = get_logs(log_file)
@@ -481,7 +499,15 @@ class Client:
         - Resets the specified components
         '''
 
-        ip, port, _ = get_config()
+        username, ip, port, _ = get_current_profile()
+
+        try:
+            if username is None:
+                raise Exception('Please create or switch user to perform')
+        except Exception as e:
+            logger.error(e)     
+            sys.exit(1)
+
         check_socket_running(ip, port)
 
         target = args.target
@@ -500,30 +526,30 @@ class Client:
                 return
 
         if target == 'all':
-            self._reset_config(verbose)
-            self._reset_logs(verbose)
+            self._reset_config(username, verbose)
+            self._reset_logs(username, verbose)
         elif target == 'config':
-            self._reset_config(verbose)
+            self._reset_config(username, verbose)
         elif target == 'logs':
-            self._reset_logs(verbose)
+            self._reset_logs(username, verbose)
 
-    def _reset_config(self, verbose: bool) -> None:
+    def _reset_config(self, username: str, verbose: bool) -> None:
         '''
         Resets configuration to default values.
         Optionally logs the action if verbose is True.
         '''
 
-        create_config()
+        update_profile(username)
         if verbose:
             logger.info('Configuration has been successfully reset to default values')
 
-    def _reset_logs(self, verbose: bool) -> None:
+    def _reset_logs(self, username: str, verbose: bool) -> None:
         '''
         Deletes all log files in the logs directory.
         Optionally logs each deletion if verbose is True.
         '''
 
-        logs_dir = get_logs_dir()
+        logs_dir = get_logs_dir(username)
         for filename in os.listdir(logs_dir):
             file_path = os.path.join(logs_dir, filename)
             if os.path.isfile(file_path):
@@ -534,11 +560,170 @@ class Client:
                 except Exception:
                     logger.error(f'Could not delete {filename}')
 
+    def user_handler(self, args: Namespace) -> None:
+        '''
+        Handles user-related operations based on subcommands.
+        - 'add': Creates a new user
+        - 'rm': Removes an existing user
+        - 'switch': Switches to another user
+        - 'rename': Renames a user
+        - 'ls': Lists all users
+        '''
+
+        subcommand = args.subcommand
+
+        if subcommand == 'add':
+            self._user_add_handler(args)
+        elif subcommand == 'rm':
+            self._user_rm_handler(args)
+        elif subcommand == 'switch':
+            self._user_switch_handler(args)
+        elif subcommand == 'rename':
+            self._user_rename_handler(args)
+        elif subcommand == 'ls':
+            self._user_ls_handler()
+
+    def _is_valid_username(self, username: str) -> bool:
+        '''
+        Validates the username:
+        - Must consist of letters, digits, hyphen (-) or underscore (_)
+        - Must be between 3 and 16 characters long
+        '''
+
+        pattern = r'^[a-zA-Z0-9_-]{3,16}$'
+
+        try:
+            if re.match(pattern, username):
+                return True
+            raise ValueError('Username must only contain letters, digits, hyphens (-) or underscores (_) and its length must be between 3 and 16 characters.')
+        except ValueError as e:
+            logger.error(e)
+            sys.exit(1)    
+
+    def _user_add_handler(self, args: Namespace) -> None: 
+        '''
+        Adds a new user to the system.
+        - Checks if the user already exists
+        - Creates the profile if valid
+        - Switches to the new user if requested
+        '''
+
+        _, ip, port, _ = get_current_profile()
+        check_socket_running(ip, port)
+               
+        profile_data = get_profiles()
+
+        try:
+            username = args.username
+            self._is_valid_username(username)
+
+            for profile in profile_data:
+                if profile.get('username') == username:
+                    raise ValueError(f'User \'{username}\' already exists')
+            
+            create_profile(username)
+
+            if args.verbose:
+                logger.info(f'User \'{username}\' has been created')
+            
+            if args.switch:
+                self._user_switch_handler(args)
+        except ValueError as e:
+            logger.error(e)
+            sys.exit(1)    
+
+    def _user_rm_handler(self, args: Namespace) -> None:
+        '''
+        Removes an existing user from the system.
+        - Validates if the user exists before removing
+        '''
+
+        _, ip, port, _ = get_current_profile()
+        check_socket_running(ip, port)
+
+        try:
+            username = args.username
+
+            if not remove_profile(username):
+                raise Exception(f'User \'{username}\' does not exist')
+
+            if args.verbose:
+                logger.info(f'User \'{username}\' has been removed')
+        except Exception as e:
+            logger.error(e)
+            sys.exit(1)   
+
+    def _user_switch_handler(self, args: Namespace) -> None:
+        '''
+        Switches to a different user profile.
+        - Validates if the profile exists before switching
+        '''
+        
+        _, ip, port, _ = get_current_profile()
+        check_socket_running(ip, port)
+
+        try:
+            username = args.username
+
+            if not switch_profile(username):
+                raise Exception(f'User \'{username}\' does not exist')
+
+            if args.verbose:
+                logger.info(f'Switched to \'{username}\'')
+        except Exception as e:
+            logger.error(e)
+            sys.exit(1)   
+
+    def _user_rename_handler(self, args: Namespace) -> None:
+        '''
+        Renames an existing user profile.
+        - Validates if the old user exists before renaming
+        '''
+
+        _, ip, port, _ = get_current_profile()
+        check_socket_running(ip, port)
+
+        try:
+            old_username, new_username = args.old_username, args.new_username
+            self._is_valid_username(new_username)
+
+            if not rename_profile(old_username, new_username):
+                raise Exception(f'User \'{old_username}\' does not exist')
+
+            if args.verbose:
+                logger.info(f'User \'{old_username}\' has been renamed to \'{new_username}\'')
+        except Exception as e:
+            logger.error(e)
+            sys.exit(1)   
+
+    def _user_ls_handler(self) -> None:
+        '''
+        Lists all user profiles.
+        - Marks the selected user with " <= "
+        '''
+
+        profile_data = get_profiles()
+        
+        for profile in profile_data:
+            username = profile.get('username')
+            if int(profile.get('selected')): 
+                username+=' <= '
+            print(username)
+
     def config_handler(self, args: Namespace) -> None:
         '''
         Handles config-related CLI subcommands ("set" and "show").
         Delegates to appropriate internal methods.
         '''
+
+        username, _, _, _ = get_current_profile()
+
+        try:
+            if username is None:
+                raise Exception('Please create or switch user to perform')
+        except Exception as e:
+            logger.error(e)
+            sys.exit(1)
 
         subcommand = args.subcommand
         if subcommand == 'set':
@@ -587,7 +772,7 @@ class Client:
             logger.error(e)
             sys.exit(1)    
 
-        ip, port, limit = get_config()
+        username, ip, port, limit = get_current_profile()
         check_socket_running(ip, port)
 
         i = args.ip or ip
@@ -596,7 +781,7 @@ class Client:
 
         if args.ip or args.port:
             check_ip_valid(i, p)
-        create_config(i, p, l)
+        update_profile(username, i, p, l)
 
         if args.verbose:
             logger.info('Configuration has been saved successfully')
@@ -608,7 +793,7 @@ class Client:
         - Prints them
         '''
 
-        ip, port, limit = get_config()
+        _, ip, port, limit = get_current_profile()
         print('HOST IP ADDRESS:', ip)
         print('PORT:', port)
         print('MAXIMUM PROCESS LIMIT:', limit)

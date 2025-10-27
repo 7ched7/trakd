@@ -1,13 +1,12 @@
 import os
-import json 
 from datetime import datetime, timedelta
 from filelock import FileLock
 from contextlib import contextmanager
 from typing import Generator
 from type import LogType
 
-def get_logs_dir() -> str:
-    logs_dir = os.path.expanduser('~/.trakd/logs')
+def get_logs_dir(username: str) -> str:
+    logs_dir = os.path.expanduser(f'~/.trakd/logs/{username}')
     if not os.path.exists(logs_dir):
         os.makedirs(logs_dir)
     return logs_dir
@@ -16,14 +15,30 @@ def get_logs(path: str) -> LogType:
     data = {}
     try:
         with open(path, 'r') as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, IOError):
+            for line in f:
+                if not line.strip():
+                    continue
+                p, s, e = [x.strip() for x in line.strip().split('|')]
+
+                if p not in data: 
+                    data[p] = []
+
+                data[p].append({
+                    'start_time': s,
+                    'end_time': e
+                })
+    except (FileNotFoundError, IOError):
         pass
     return data
 
 def write_logs(path: str, data: dict) -> None:
+    log = ''
+    
+    for key in data:
+        log+='\n'.join(f"{key}|{t['start_time']}|{t['end_time']}" for t in data[key]) + '\n'
+    
     with open(path, 'w') as f:
-        json.dump(data, f, indent=4)
+        f.write(log)
 
 @contextmanager
 def manage_lock(lock_file: str) -> Generator[None, None, None]:
@@ -31,8 +46,8 @@ def manage_lock(lock_file: str) -> Generator[None, None, None]:
     with lock:
         yield
 
-def save_start_time(process_name: str, start_time: datetime) -> int:
-    logs_dir = get_logs_dir()
+def save_start_time(username: str, process_name: str, start_time: datetime) -> int:
+    logs_dir = get_logs_dir(username)
     log_file = os.path.join(logs_dir, start_time.strftime('%Y%m%d'))
 
     inf = { 
@@ -52,10 +67,10 @@ def save_start_time(process_name: str, start_time: datetime) -> int:
 
         write_logs(log_file, data)
 
-def save_end_time(process_name: str, start_time: datetime) -> None:
+def save_end_time(username: str, process_name: str, start_time: datetime) -> None:
     now = datetime.now()
     
-    logs_dir = get_logs_dir()
+    logs_dir = get_logs_dir(username)
 
     lock_file = os.path.join(logs_dir, 'lck.lock')
 

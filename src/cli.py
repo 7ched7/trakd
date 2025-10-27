@@ -85,6 +85,25 @@ class CliManager:
         
         ls_parser = subparsers.add_parser('ls', help='list all processes')
 
+        user_parser = subparsers.add_parser('user', help='manage users')
+        user_subparsers = user_parser.add_subparsers(dest='subcommand', required=True)
+
+        user_add_parser = user_subparsers.add_parser('add', help='add a new user')
+        user_add_parser.add_argument('username', help='username')
+        user_add_parser.add_argument('-s', '--switch', action='store_true', help='switch after user is created')
+        user_add_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
+        user_rm_parser = user_subparsers.add_parser('rm', help='remove a user')
+        user_rm_parser.add_argument('username')
+        user_rm_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
+        user_switch_parser = user_subparsers.add_parser('switch', help='switch user')
+        user_switch_parser.add_argument('username')
+        user_switch_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
+        user_rename_parser = user_subparsers.add_parser('rename', help='rename username')
+        user_rename_parser.add_argument('old_username')
+        user_rename_parser.add_argument('new_username')
+        user_rename_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
+        user_list_parser = user_subparsers.add_parser('ls', help='list all users')
+
         report_parser = subparsers.add_parser('report', help='show report')
         report_parser.add_argument('--daily', default=True, action='store_true', help='show daily report')
         report_parser.add_argument('--weekly', action='store_true', help='show weekly report')
@@ -127,6 +146,8 @@ class CliManager:
             client.ps_handler(args)
         elif command == 'ls':
             client.ls_handler()
+        elif command == 'user':
+            client.user_handler(args)
         elif command == 'report':
             client.report_handler(args)
         elif command == 'reset':
