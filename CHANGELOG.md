@@ -1,3 +1,10 @@
+## Version 0.3.0 - 10/28/2025
+### Added
+- Multi-user feature: Users can be created, deleted, switched between and renamed
+- Colored output support for enhanced readability
+### Fixed
+- Prevented the program from tracking itself
+
 ## Version 0.2.0 - 06/05/2025
 ### Added
 - Ability to rename tracking IDs 

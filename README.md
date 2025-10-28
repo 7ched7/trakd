@@ -1,7 +1,7 @@
-# TRAKD
+# TRAKD  
 **Trakd** is a lightweight and socket-based CLI (Command Line Interface) program tracking and time reporting tool for the Linux operating system. Ideal for anyone looking to better manage their time, understand how much time is spent on different programs, and monitor process activity directly from the terminal. With a clean and scriptable interface, it allows seamless integration into your daily workflow, giving you insights into your productivity, and enabling detailed time reporting.
 
-### Why Trakd?
+**Why Trakd?**
 * **Minimal and fast** - No GUI distractions
 * **Linux-first** - Tailored for terminal lovers
 * **Local-first** - Your data stays on your machine
@@ -9,19 +9,24 @@
 * **Insightful reports** - View daily or weekly usage breakdowns
 
 ## Installation
+
+<details open>
+
+<summary>Steps</summary>
+
 1. **Download the release archive**
 ```sh
-$ wget https://github.com/cihatar/trakd/releases/download/v0.2.0/trakd-v0.2.0.tar.gz
+$ wget https://github.com/7ched7/trakd/releases/download/v0.3.0/trakd-v0.3.0.tar.gz
 ```
 
 2. **Extract the archive**
 ```sh
-$ tar -xzvf trakd-v0.2.0.tar.gz
+$ tar -xzvf trakd-v0.3.0.tar.gz
 ```
 
 3. **Install the application**
 ```sh
-$ cd trakd-v0.2.0
+$ cd trakd-v0.3.0
 $ ./install.sh
 ```
 
@@ -30,31 +35,64 @@ $ ./install.sh
 $ trakd -v
 ```
 
-## Usage
-### Start the server
-```sh
-$ trakd start
-```
+</details>
 
-### List all system processes
-```sh
-$ trakd ls
-```
+## Commands
 
-### Start tracking a process
-```sh
-$ trakd add chrome                       # track by process name
-$ trakd add 5173                         # track by pid
-$ trakd add chrome -n my_chrome_tracker  # add with custom tracking id
-```
+<details>
+<summary>start</summary>
 
-### Show tracked processes
-```sh
-$ trakd ps     # show running tracked processes
-$ trakd ps -a  # show all (running + stopped)
-$ trakd ps -d  # detailed view
-```
-* Example output
+- **`$ trakd start`**  
+Start the server using the IP address and port from user config
+
+</details>
+
+<details>
+<summary>stop</summary>
+
+- **`$ trakd stop`**  
+Normal stop (fails if processes are tracked)
+
+- **`$ trakd stop -f`**  
+Force stop (terminates all tracking and shuts down)
+
+</details>
+
+<details>
+<summary>ls</summary>
+
+- **`$ trakd ls`**  
+List all processes available for tracking
+
+</details>
+
+<details>
+<summary>add</summary>
+
+- **`$ trakd add <process_name>`**  
+Track by process name
+
+- **`$ trakd add <pid>`**  
+Track by pid
+
+- **`$ trakd add <process_name> -n <id>`**  
+Add with custom tracking id
+
+</details>
+
+<details>
+<summary>ps</summary>
+
+- **`$ trakd ps`**  
+Show running tracked processes
+
+- **`$ trakd ps -a`**  
+Show all tracked processes (running + stopped)
+
+- **`$ trakd ps -d`**  
+Detailed view
+
+> **Example output**
 ```sh
 TRACK ID           PROCESS    PID    STARTED              STATUS    CONNECTION
 -----------------  ---------  -----  -------------------  --------  ---------------
@@ -63,48 +101,51 @@ my_chrome_tracker  chrome     2705   2025/05/28 09:04:36  running   127.0.0.1/47
 2515fc63e592       vim        --     2025/05/28 11:30:12  stopped   127.0.0.1/47618
 ```
 
-### Stop tracking a process
-```sh
-$ trakd rm my_chrome_tracker
-```
-> To stop tracking a process, you must use its `track ID` instead of the `process name` or `PID`.
+</details>
 
-### Rename tracking ID
-```sh
-$ trakd rename 45f6e7c16e87 my_mongodb_tracker
-```
-> The current ID must come before the new ID in the command
+<details>
+<summary>rename</summary>
 
-### Check the status
-```sh
-$ trakd status
-```
+- **`$ trakd rename <old_id> <new_id>`**  
+Rename the tracking identifier
 
-* Example output
+</details>
+
+<details>
+<summary>status</summary>
+
+- **`$ trakd status`**  
+
+> **Example output**
 ```sh
 SERVER: running
 HOST: 127.0.0.1:10101
 TRACKED PROCESSES: 2 (1 running, 1 stopped) 
 ```
 
-### Stop the server
-```sh
-$ trakd stop
-```
-> If you have programs that are still being tracked, the `stop` command will return an error. Instead, you can use the `--force` flag to stop tracking all processes and stop the server.
-```sh
-$ trakd stop -f 
-```
+</details>
 
-### View usage reports 
-```sh
-$ trakd report            # default: daily
-$ trakd report --daily    # explicit daily report
-$ trakd report --weekly   # weekly report
-$ trakd report --monthly  # monthly report
-```
+<details>
+<summary>rm</summary>
 
-* Example output
+- **`$ trakd rm <id>`**  
+Stop tracking a specific process
+
+</details>
+
+<details>
+<summary>report</summary>
+
+- **`$ trakd report`**  
+Report program usage (default: daily)
+
+- **`$ trakd report --daily`**  
+
+- **`$ trakd report --weekly`**  
+
+- **`$ trakd report --monthly`**  
+
+> **Example output**
 ```sh
 WEEKLY REPORT - 2025/05/21 - 2025/05/27
 
@@ -115,29 +156,68 @@ mongod        18h 45m 22s       5
 vim           8h 30m 41s        4
 ```
 
-### Manage configuration
-```sh
-$ trakd config set -i 127.0.0.1 -p 8000 -l 8  # set config
-$ trakd config show                           # view current config
-```
+</details>
 
-* Example output
+<details>
+<summary>user</summary>
+
+- **`$ trakd user add <username>`**  
+Create a new user with the specified username
+
+- **`$ trakd user add <username> -s`**  
+Create a new user and immediately switch to that user
+
+- **`$ trakd user switch <username>`**  
+Switch to an existing user
+
+- **`$ trakd user rename <old_username> <new_username>`**  
+Rename an existing user
+
+- **`$ trakd user ls`**  
+List all users currently in the system
+
+- **`$ trakd user rm <username>`**  
+Remove an existing user by specifying the username
+
+</details>
+
+<details>
+<summary>config</summary>
+
+- **`trakd config set -i 127.0.0.1 -p 8000 -l 8`**  
+Set IP address, port, and maximum number of tracked programs
+
+- **`$ trakd config show`**  
+Show user config
+
+> **Example output**
 ```sh
 HOST IP ADDRESS: 127.0.0.1
 PORT: 8000
 MAXIMUM PROCESS LIMIT: 8
 ```
 
-### Reset application
-```sh
-$ trakd reset logs       # clear logs
-$ trakd reset config     # reset configuration
-$ trakd reset all        # full reset
-$ trakd reset all -y -v  # skip prompts, verbose output
-```
+</details>
+
+<details>
+<summary>reset</summary>
+
+- **`$ trakd reset logs`**  
+Clear tracking logs
+
+- **`$ trakd reset config`**  
+Reset user config
+
+- **`$ trakd reset all`**  
+Full reset
+
+- **`$ trakd reset all -y -v`**  
+Full reset, skip prompts, verbose output
+
+</details>
 
 ## Contributing
 Pull requests, issues, and feature ideas are warmly welcome!
 
 ## License
-[MIT](LICENSE) ©
+This project is licensed under the MIT License. See the [MIT](LICENSE) file for details.
