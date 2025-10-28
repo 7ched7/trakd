@@ -200,15 +200,13 @@ class Client:
 
         return False
 
-    def _track_process(self) -> None:
+    def _track_process(self, username: str) -> None:
         '''
         Continuously tracks the specified process.
         - Updates status
         - Saves start/end times at intervals
         - Puts updates into the message queue
         '''
-        
-        username, _, _, _ = get_current_profile()
 
         event = self.event
         queue = self.queue
@@ -255,7 +253,7 @@ class Client:
                     
             time.sleep(1)
 
-    def _signal_handler(self) -> None:
+    def _signal_handler(self, username: str) -> None:
         '''
         Registers SIGTERM and SIGINT handlers to ensure process end times are saved 
         and threads are properly stopped.
@@ -266,7 +264,7 @@ class Client:
             process_name = self.process_name
 
             if start_time:
-                save_end_time(process_name, start_time)
+                save_end_time(username, process_name, start_time)
                 
             self.event.set()
 
@@ -280,13 +278,15 @@ class Client:
         - Establishes connection
         - Sets up signal handlers
         - Runs connection and tracking threads
-        '''
+        ''' 
+
+        username, _, _, _ = get_current_profile()
 
         self._notify_socket(args)
-        self._signal_handler()
+        self._signal_handler(username)
 
         t1 = threading.Thread(target=self._connection_handler)
-        t2 = threading.Thread(target=self._track_process)
+        t2 = threading.Thread(target=self._track_process, args=(username,))
         t1.start()  
         t2.start()
 
