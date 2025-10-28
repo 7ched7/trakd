@@ -90,7 +90,7 @@ class Server:
 
         try:
             if username is None:
-                raise Exception('Please create or switch user to start the server')
+                raise Exception('Please create a user or switch to an existing user to start the server')
         except Exception as e:
             logger.error(e)
             sys.exit(1)

@@ -14,7 +14,7 @@ def create_socket_connection() -> socket.socket:
 
     try:
         if username is None:
-            raise Exception('Please create or switch user to perform')
+            raise Exception('Please create a user or switch to an existing user to perform')
 
         client_socket.connect((ip, port))
          

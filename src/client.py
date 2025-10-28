@@ -31,7 +31,7 @@ from helper import (
     update_profile
 )
 from daemon import daemon
-from logger import logger
+from logger import logger, GREEN, YELLOW, BOLD, RESET 
 from datetime import datetime, timedelta
 from argparse import Namespace 
 from tabulate import tabulate
@@ -133,7 +133,7 @@ class Client:
             elif received_data == 'duplicate id':
                 raise Exception(f'Id \'{args.name}\' is already in use')
             elif received_data == 'duplicate process':
-                raise Exception(f'Already tracking {process_name}')
+                raise Exception(f'Already tracking \'{process_name}\'')
             elif received_data == 'limit':
                 process_word = 'process' if limit == 1 else 'processes'
                 raise Exception(f'Maximum process tracking limit exceeded. You can only run up to {limit} {process_word} simultaneously')
@@ -264,7 +264,7 @@ class Client:
         Displays results in a table format.
         '''
 
-        headers = ['USER', 'PID', 'PROCESS']
+        headers = [f'{YELLOW}USER{RESET}', f'{YELLOW}PID{RESET}', f'{YELLOW}PROCESS{RESET}']
         rows = []
 
         for proc in psutil.process_iter(['username', 'pid', 'name']):
@@ -319,9 +319,9 @@ class Client:
             running = data.get('running')
             stopped = data.get('stopped')
 
-            print(f'SERVER: running')
-            print(f'HOST: {ip}:{port}')
-            print(f'TRACKED PROCESSES: {tracked_processes} { f'({running} running, {stopped} stopped)' if tracked_processes != 0 else '' } ')
+            print(f'{BOLD}SERVER:{RESET} running')
+            print(f'{BOLD}HOST:{RESET} {ip}:{port}')
+            print(f'{BOLD}TRACKED PROCESSES:{RESET} {tracked_processes} { f'{GREEN}({running} running, {stopped} stopped){RESET}' if tracked_processes != 0 else '' } ')
 
         except json.decoder.JSONDecodeError:
             logger.error(f'There was a problem retrieving the status data, please try again')
@@ -364,10 +364,10 @@ class Client:
         try:
             data = json.loads(data)
 
-            headers = ['TRACK ID', 'PROCESS', 'STARTED', 'STATUS']
+            headers = [f'{YELLOW}TRACK ID{RESET}', f'{YELLOW}PROCESS{RESET}', f'{YELLOW}STARTED{RESET}', f'{YELLOW}STATUS{RESET}']
             if args.detailed:
-                headers.insert(2, 'PID')
-                headers.append('CONNECTION')
+                headers.insert(2, f'{YELLOW}PID{RESET}')
+                headers.append(f'{YELLOW}CONNECTION{RESET}')
             rows = []
 
             for track_id, process_information in data.items():
@@ -429,7 +429,7 @@ class Client:
 
         try:
             if username is None:
-                raise Exception('Please create or switch user to perform')
+                raise Exception('Please create a user or switch to an existing user to perform')
         except Exception as e:
             logger.error(e)     
             sys.exit(1)
@@ -440,9 +440,9 @@ class Client:
 
         logs_dir = get_logs_dir(username)
 
-        headers = ['PROCESS', 'TOTAL RUN TIME']
+        headers = [f'{YELLOW}PROCESS{RESET}', f'{YELLOW}TOTAL RUN TIME{RESET}']
         if weekly or monthly:
-            headers.append('ACTIVE DAYS')
+            headers.append(f'{YELLOW}ACTIVE DAYS{RESET}')
         rows = []
 
         if weekly or monthly:
@@ -472,7 +472,7 @@ class Client:
                 active_days_count = len(info['active_days']) or 1  
                 rows.append([process, time_inf, active_days_count])
 
-            print(f'{'MONTHLY' if monthly else 'WEEKLY'} REPORT - {(now - timedelta(days=day_range-1)).date()} - {now.date()}\n')
+            print(f'{f'{BOLD}MONTHLY' if monthly else f'{BOLD}WEEKLY'} REPORT - {(now - timedelta(days=day_range-1)).date()} - {now.date()}{RESET}\n')
         else:
             log_file = os.path.join(logs_dir, now.strftime('%Y%m%d'))
             data = get_logs(log_file)
@@ -488,7 +488,7 @@ class Client:
                 time_inf = timedelta_to_str(total_elapsed_time)
                 rows.append([process, time_inf])
 
-            print(f'DAILY REPORT - {now.date()}\n')
+            print(f'{BOLD}DAILY REPORT - {now.date()}{RESET}\n')
 
         print(tabulate(rows, headers, tablefmt='simple', numalign='left'))
 
@@ -503,7 +503,7 @@ class Client:
 
         try:
             if username is None:
-                raise Exception('Please create or switch user to perform')
+                raise Exception('Please create a user or switch to an existing user to perform')
         except Exception as e:
             logger.error(e)     
             sys.exit(1)
@@ -521,7 +521,6 @@ class Client:
                     logger.info('Reset cancelled')
                     return
             except (KeyboardInterrupt, EOFError):
-                print()
                 logger.info('Reset cancelled')
                 return
 
@@ -705,9 +704,9 @@ class Client:
         profile_data = get_profiles()
         
         for profile in profile_data:
-            username = profile.get('username')
+            username = f'{BOLD}{profile.get('username')}{RESET}'
             if int(profile.get('selected')): 
-                username+=' <= '
+                username+=f' {GREEN}<={RESET} '
             print(username)
 
     def config_handler(self, args: Namespace) -> None:
@@ -720,7 +719,7 @@ class Client:
 
         try:
             if username is None:
-                raise Exception('Please create or switch user to perform')
+                raise Exception('Please create a user or switch to an existing user to perform')
         except Exception as e:
             logger.error(e)
             sys.exit(1)
@@ -794,6 +793,6 @@ class Client:
         '''
 
         _, ip, port, limit = get_current_profile()
-        print('HOST IP ADDRESS:', ip)
-        print('PORT:', port)
-        print('MAXIMUM PROCESS LIMIT:', limit)
+        print(f'{BOLD}HOST IP ADDRESS:{RESET}', ip)
+        print(f'{BOLD}PORT:{RESET}', port)
+        print(f'{BOLD}MAXIMUM PROCESS LIMIT:{RESET}', limit)
