@@ -12,6 +12,7 @@ import json
 import re
 from threading import Event
 from queue import Queue
+from pathlib import Path
 from typing import Any, Dict, Optional, Union
 from helper import (
     create_socket_connection, 
@@ -155,6 +156,9 @@ class Client:
         target: Union[str, int] = int(process) if process.isdigit() else process
 
         for proc in psutil.process_iter(['name', 'pid']):
+            if self._is_self_tracking_process(proc):
+                continue
+
             name = proc.info.get('name')
             pid = proc.info.get('pid')
 
@@ -164,6 +168,37 @@ class Client:
                 return proc.info
             
         return None
+    
+    def _is_self_tracking_process(self, proc: psutil.Process) -> bool:
+        '''
+        Checks if the program is trying to track itself.
+        The process is excluded from tracking if:
+        - It has the same PID as the current script (self).
+        - It is the 'trakd' process (based on specific path).
+        - The process command line contains 'trakd'.
+        '''
+
+        if proc.pid == os.getpid():
+            return True
+        
+        if proc.info['name'].lower() == 'trakd':
+            return True
+
+        try:
+            exe_path = Path(proc.exe()).resolve()
+            trakd_path = Path('/usr/local/bin/trakd').resolve()
+            if exe_path == trakd_path:
+                return True
+        except:
+            pass
+
+        try:
+            if proc.cmdline() and 'trakd' in proc.cmdline([0]):
+                return True
+        except:
+            pass
+
+        return False
 
     def _track_process(self) -> None:
         '''
