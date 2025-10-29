@@ -2,7 +2,7 @@ import socket
 import threading
 import sys
 import json
-from helper import get_current_profile
+from manager import ProfileManager
 from daemon import daemon
 from logger import logger
 from typing import Union, Dict
@@ -11,18 +11,20 @@ from threading import Event, Lock
 
 class Server:
     '''
-    Server class: manages the server-side socket connections, handles
+    Manages the server-side socket connections, handles
     client requests for process tracking, and maintains state for all tracked processes.
     '''
 
     def __init__(self):
         '''
         Initializes server attributes:
-        - tracked_processes: dictionary to store currently tracked processes
+        - profile_manager: Manages user profiles
+        - tracked_processes: Dictionary to store currently tracked processes
         - stop_event: Event to signal server shutdown
         - lock: Lock to safely access shared resources across threads
         '''
 
+        self.profile_manager = ProfileManager()
         self.tracked_processes: Dict[str, ProcessInfo] = {}
         self.stop_event: Event = Event()
         self.lock: Lock = Lock()
@@ -86,7 +88,7 @@ class Server:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         
-        username, ip, port, _ = get_current_profile()
+        username, ip, port, _ = self.profile_manager.get_current_profile()
 
         try:
             if username is None:
@@ -202,7 +204,7 @@ class Server:
         tracked_processes = self.tracked_processes
         lock = self.lock
 
-        _, _, _, limit = get_current_profile()
+        _, _, _, limit = self.profile_manager.get_current_profile()
         if not len(tracked_processes) < limit:
             conn.send(b'limit')
             return

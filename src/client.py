@@ -1,4 +1,3 @@
-import socket
 import threading
 import psutil
 import time
@@ -14,50 +13,44 @@ from threading import Event
 from queue import Queue
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
-from helper import (
-    create_socket_connection, 
-    send_data, 
-    save_start_time, 
-    save_end_time, 
-    get_logs, 
-    get_logs_dir,
-    check_socket_running, 
-    check_ip_valid,
-    get_profiles,
-    get_current_profile, 
-    create_profile, 
-    remove_profile,
-    switch_profile,
-    rename_profile,
-    update_profile
+from manager import (
+    ProfileManager,
+    LogManager,
+    ClientSocketManager
 )
 from daemon import daemon
-from logger import logger, GREEN, YELLOW, BOLD, RESET 
+from logger import logger
+from constants import GREEN, YELLOW, BOLD, RESET 
 from datetime import datetime, timedelta
 from argparse import Namespace 
 from tabulate import tabulate
 
 class Client:
     '''
-    Client class: manages socket connections, tracks processes, 
+    Manages socket connections, tracks processes, 
     communicates with the server, and handles CLI subcommands.
     '''
 
     def __init__(self):
         '''
         Initializes client attributes:
-        - socket
+        - profile, log, and client socket managers
         - event for thread control
         - message queue
         - process information (name, PID, start_time)
         '''
 
-        self.client_socket: socket.socket = None
+        self.profile_manager = ProfileManager()
+        username, ip, port, _ = self.profile_manager.get_current_profile()
+
+        self.log_manager = LogManager(username) 
+        self.client_socket_manager = ClientSocketManager(username, ip, port)
+
         self.event: Event = Event()
         self.queue = Queue()
-        self.start_time: datetime = None
         self.process_name: str = None
         self.process_pid: int = None
+        self.start_time: datetime = None
     
     def _connection_handler(self) -> None:     
         '''
@@ -67,7 +60,7 @@ class Client:
         - Periodically sends ping
         '''
 
-        client_socket = self.client_socket
+        client_socket = self.client_socket_manager.client_socket
         queue = self.queue
         event = self.event
 
@@ -83,10 +76,10 @@ class Client:
                 
                 if not queue.empty():
                     json_data = queue.get()
-                    send_data(client_socket, json_data, wait_for_response=False)
+                    self.client_socket_manager.send_data(json_data, wait_for_response=False)
                     continue
                 
-                send_data(client_socket, 'ping', wait_for_response=False, event=event)
+                self.client_socket_manager.send_data('ping', wait_for_response=False, event=event)
                 time.sleep(10)
         except Exception as e:
             logger.error(f'Error during connection control: {e}')
@@ -94,7 +87,7 @@ class Client:
         finally:
             client_socket.close()
 
-    def _notify_socket(self, args: Namespace) -> None:
+    def _notify_socket(self, args: Namespace, limit: int) -> None:
         '''
         Establishes initial connection to the server and sends process information to track.
         - Checks if the process is running
@@ -102,11 +95,10 @@ class Client:
         - Handles server response
         '''
 
-        client_socket = create_socket_connection()
+        self.client_socket_manager.create_connection()
 
         try:
             process_info = self._get_process(args.process)
-            _, _, _, limit = get_current_profile()
 
             if not process_info:
                 raise Exception('The program is not running, please start the application')
@@ -127,7 +119,7 @@ class Client:
                 }
             }
 
-            received_data = send_data(client_socket, json_data).lower()
+            received_data = self.client_socket_manager.send_data(json_data).lower()
 
             if received_data == 'ok' and args.verbose:
                 logger.info(f'Tracking started: {process_name}')
@@ -139,12 +131,11 @@ class Client:
                 process_word = 'process' if limit == 1 else 'processes'
                 raise Exception(f'Maximum process tracking limit exceeded. You can only run up to {limit} {process_word} simultaneously')
 
-            self.client_socket = client_socket
             self.process_name = process_name
             self.start_time = start_time
         except Exception as e:
             logger.error(e)
-            client_socket.close()
+            self.client_socket_manager.client_socket.close()
             sys.exit(1)
 
     def _get_process(self, process: str) -> Optional[Dict[str, Any]]:
@@ -200,7 +191,7 @@ class Client:
 
         return False
 
-    def _track_process(self, username: str) -> None:
+    def _track_process(self) -> None:
         '''
         Continuously tracks the specified process.
         - Updates status
@@ -214,8 +205,8 @@ class Client:
         process_name = self.process_name
         process_pid = self.process_pid
 
-        save_start_time(username, process_name, start_time)
-        save_end_time(username, process_name, start_time)
+        self.log_manager.save_start_time(process_name, start_time)
+        self.log_manager.save_end_time(process_name, start_time)
         
         save_interval = timedelta(minutes=5)
         next_save = start_time + save_interval
@@ -233,27 +224,27 @@ class Client:
 
                 if not start_time:
                     start_time = now
-                    save_start_time(username, process_name, start_time)
-                    save_end_time(username, process_name, start_time)
+                    self.log_manager.save_start_time(process_name, start_time)
+                    self.log_manager.save_end_time(process_name, start_time)
                     next_save = start_time + save_interval
             elif not process_info and start_time:
                 json_data = { 'command': 'update', 'status': 'stopped', process_name: None }
                 queue.put(json_data)
-                save_end_time(username, process_name, start_time)
+                self.log_manager.save_end_time(process_name, start_time)
                 start_time = None
 
             if now >= next_save and start_time:
-                save_end_time(username, process_name, start_time)
+                self.log_manager.save_end_time(process_name, start_time)
                 next_save = now + save_interval
             
             if event.is_set():
                 if start_time:
-                    save_end_time(username, process_name, start_time)
+                    self.log_manager.save_end_time(process_name, start_time)
                 break
                     
             time.sleep(1)
 
-    def _signal_handler(self, username: str) -> None:
+    def _signal_handler(self) -> None:
         '''
         Registers SIGTERM and SIGINT handlers to ensure process end times are saved 
         and threads are properly stopped.
@@ -264,7 +255,7 @@ class Client:
             process_name = self.process_name
 
             if start_time:
-                save_end_time(username, process_name, start_time)
+                self.log_manager.save_end_time(process_name, start_time)
                 
             self.event.set()
 
@@ -280,13 +271,13 @@ class Client:
         - Runs connection and tracking threads
         ''' 
 
-        username, _, _, _ = get_current_profile()
+        username, _, _, limit = self.profile_manager.get_current_profile()
 
-        self._notify_socket(args)
-        self._signal_handler(username)
+        self._notify_socket(args, limit)
+        self._signal_handler()
 
         t1 = threading.Thread(target=self._connection_handler)
-        t2 = threading.Thread(target=self._track_process, args=(username,))
+        t2 = threading.Thread(target=self._track_process)
         t1.start()  
         t2.start()
 
@@ -319,10 +310,10 @@ class Client:
         - Logs messages accordingly
         '''
 
-        client_socket = create_socket_connection()
+        self.client_socket_manager.create_connection()
 
         try:   
-            data = send_data(client_socket, {'command': 'stop', 'flag': 'force' if args.force else 'non-force'}).lower()
+            data = self.client_socket_manager.send_data({'command': 'stop', 'flag': 'force' if args.force else 'non-force'}).lower()
                     
             if data == 'ok' and args.verbose:
                 logger.info('Stopping the server')
@@ -333,7 +324,7 @@ class Client:
             logger.error(e)
             sys.exit(1)
         finally:
-            client_socket.close()
+            self.client_socket_manager.client_socket.close()
 
     def status_handler(self) -> None:
         '''
@@ -342,8 +333,8 @@ class Client:
         - Tracked processes (running/stopped counts)
         '''
 
-        client_socket = create_socket_connection()
-        data = send_data(client_socket, { 'command': 'status' })
+        self.client_socket_manager.create_connection()
+        data = self.client_socket_manager.send_data({ 'command': 'status' })
 
         try: 
             data = json.loads(data)
@@ -362,7 +353,7 @@ class Client:
             logger.error(f'There was a problem retrieving the status data, please try again')
             sys.exit(1)
         finally:
-            client_socket.close()
+            self.client_socket_manager.client_socket.close()
 
     def rm_handler(self, args: Namespace) -> None:
         '''
@@ -370,10 +361,10 @@ class Client:
         Handles errors if the process is not being tracked.
         '''
 
-        client_socket = create_socket_connection()
+        self.client_socket_manager.create_connection()
 
         try:   
-            data = send_data(client_socket, { 'command': 'rm', 'process': args.id }).lower()
+            data = self.client_socket_manager.send_data({ 'command': 'rm', 'process': args.id }).lower()
 
             if data == 'ok' and args.verbose:
                 logger.info(f'Tracking stopped: {args.id}')
@@ -385,7 +376,7 @@ class Client:
             logger.error(e)
             sys.exit(1)
         finally:
-            client_socket.close()
+            self.client_socket_manager.client_socket.close()
 
     def ps_handler(self, args: Namespace) -> None:
         '''
@@ -393,8 +384,8 @@ class Client:
         Supports detailed view and all processes view.
         '''
 
-        client_socket = create_socket_connection()
-        data = send_data(client_socket, { 'command': args.command, 'all': args.all, 'detailed': args.detailed })
+        self.client_socket_manager.create_connection()
+        data = self.client_socket_manager.send_data({ 'command': args.command, 'all': args.all, 'detailed': args.detailed })
 
         try:
             data = json.loads(data)
@@ -416,7 +407,7 @@ class Client:
             logger.error(f'There was a problem retrieving the tracked programs data, please try again')
             sys.exit(1)
         finally:
-            client_socket.close()
+            self.client_socket_manager.client_socket.close()
 
     def rename_handler(self, args: Namespace) -> None:
         '''
@@ -424,13 +415,13 @@ class Client:
         Handles duplicates and errors.
         '''
 
-        client_socket = create_socket_connection()
+        self.client_socket_manager.create_connection()
 
         id = args.id
         new_id = args.new_id
 
         try:   
-            data = send_data(client_socket, { 'command': 'rename', 'process': id, 'new_id': new_id }).lower()
+            data = self.client_socket_manager.send_data({ 'command': 'rename', 'process': id, 'new_id': new_id }).lower()
 
             if data == 'ok' and args.verbose:
                 logger.info(f'Id \'{id}\' successfully renamed to \'{new_id}\'')
@@ -442,7 +433,7 @@ class Client:
             logger.error(e)
             sys.exit(1)
         finally:
-            client_socket.close()
+            self.client_socket_manager.client_socket.close()
 
     def report_handler(self, args: Namespace) -> None:
         '''
@@ -460,7 +451,7 @@ class Client:
 
             return f'{hours}h {minutes}m {seconds}s'
         
-        username, _, _, _ = get_current_profile()
+        username, _, _, _ = self.profile_manager.get_current_profile()
 
         try:
             if username is None:
@@ -473,7 +464,7 @@ class Client:
         monthly = args.monthly
         now = datetime.now()
 
-        logs_dir = get_logs_dir(username)
+        logs_dir = self.log_manager.logs_dir
 
         headers = [f'{YELLOW}PROCESS{RESET}', f'{YELLOW}TOTAL RUN TIME{RESET}']
         if weekly or monthly:
@@ -488,7 +479,7 @@ class Client:
             for day in range(day_range):
                 t = now - timedelta(days=day)
                 log_file = os.path.join(logs_dir, t.strftime('%Y%m%d'))
-                data = get_logs(log_file)
+                data = self.log_manager.get_logs(log_file)
 
                 for process, time_info in data.items():
                     for info in time_info:
@@ -510,7 +501,7 @@ class Client:
             print(f'{f'{BOLD}MONTHLY' if monthly else f'{BOLD}WEEKLY'} REPORT - {(now - timedelta(days=day_range-1)).date()} - {now.date()}{RESET}\n')
         else:
             log_file = os.path.join(logs_dir, now.strftime('%Y%m%d'))
-            data = get_logs(log_file)
+            data = self.log_manager.get_logs(log_file)
 
             for process, time_info in data.items():
                 total_elapsed_time = timedelta()
@@ -534,7 +525,7 @@ class Client:
         - Resets the specified components
         '''
 
-        username, ip, port, _ = get_current_profile()
+        username, _, _, _ = self.profile_manager.get_current_profile()
 
         try:
             if username is None:
@@ -543,7 +534,7 @@ class Client:
             logger.error(e)     
             sys.exit(1)
 
-        check_socket_running(ip, port)
+        self.client_socket_manager.check_if_socket_running()
 
         target = args.target
         verbose = args.verbose
@@ -561,11 +552,11 @@ class Client:
 
         if target == 'all':
             self._reset_config(username, verbose)
-            self._reset_logs(username, verbose)
+            self._reset_logs(verbose)
         elif target == 'config':
             self._reset_config(username, verbose)
         elif target == 'logs':
-            self._reset_logs(username, verbose)
+            self._reset_logs(verbose)
 
     def _reset_config(self, username: str, verbose: bool) -> None:
         '''
@@ -573,17 +564,18 @@ class Client:
         Optionally logs the action if verbose is True.
         '''
 
-        update_profile(username)
+        self.profile_manager.update_profile(username)
         if verbose:
             logger.info('Configuration has been successfully reset to default values')
 
-    def _reset_logs(self, username: str, verbose: bool) -> None:
+    def _reset_logs(self, verbose: bool) -> None:
         '''
         Deletes all log files in the logs directory.
         Optionally logs each deletion if verbose is True.
         '''
 
-        logs_dir = get_logs_dir(username)
+        logs_dir = self.log_manager.logs_dir
+
         for filename in os.listdir(logs_dir):
             file_path = os.path.join(logs_dir, filename)
             if os.path.isfile(file_path):
@@ -637,32 +629,25 @@ class Client:
     def _user_add_handler(self, args: Namespace) -> None: 
         '''
         Adds a new user to the system.
-        - Checks if the user already exists
         - Creates the profile if valid
         - Switches to the new user if requested
         '''
 
-        _, ip, port, _ = get_current_profile()
-        check_socket_running(ip, port)
-               
-        profile_data = get_profiles()
+        self.client_socket_manager.check_if_socket_running()        
 
         try:
             username = args.username
             self._is_valid_username(username)
 
-            for profile in profile_data:
-                if profile.get('username') == username:
-                    raise ValueError(f'User \'{username}\' already exists')
-            
-            create_profile(username)
+            if not self.profile_manager.create_profile(username):
+                raise Exception(f'User \'{username}\' already exists')
 
             if args.verbose:
                 logger.info(f'User \'{username}\' has been created')
             
             if args.switch:
                 self._user_switch_handler(args)
-        except ValueError as e:
+        except Exception as e:
             logger.error(e)
             sys.exit(1)    
 
@@ -672,13 +657,12 @@ class Client:
         - Validates if the user exists before removing
         '''
 
-        _, ip, port, _ = get_current_profile()
-        check_socket_running(ip, port)
+        self.client_socket_manager.check_if_socket_running()
 
         try:
             username = args.username
 
-            if not remove_profile(username):
+            if not self.profile_manager.remove_profile(username):
                 raise Exception(f'User \'{username}\' does not exist')
 
             if args.verbose:
@@ -693,13 +677,12 @@ class Client:
         - Validates if the profile exists before switching
         '''
         
-        _, ip, port, _ = get_current_profile()
-        check_socket_running(ip, port)
+        self.client_socket_manager.check_if_socket_running()
 
         try:
             username = args.username
 
-            if not switch_profile(username):
+            if not self.profile_manager.switch_profile(username):
                 raise Exception(f'User \'{username}\' does not exist')
 
             if args.verbose:
@@ -714,14 +697,13 @@ class Client:
         - Validates if the old user exists before renaming
         '''
 
-        _, ip, port, _ = get_current_profile()
-        check_socket_running(ip, port)
+        self.client_socket_manager.check_if_socket_running()
 
         try:
             old_username, new_username = args.old_username, args.new_username
             self._is_valid_username(new_username)
 
-            if not rename_profile(old_username, new_username):
+            if not self.profile_manager.rename_profile(old_username, new_username):
                 raise Exception(f'User \'{old_username}\' does not exist')
 
             if args.verbose:
@@ -733,10 +715,10 @@ class Client:
     def _user_ls_handler(self) -> None:
         '''
         Lists all user profiles.
-        - Marks the selected user with " <= "
+        - Marks the selected user with "<="
         '''
 
-        profile_data = get_profiles()
+        profile_data = self.profile_manager.get_profiles()
         
         for profile in profile_data:
             username = f'{BOLD}{profile.get('username')}{RESET}'
@@ -749,8 +731,8 @@ class Client:
         Handles config-related CLI subcommands ("set" and "show").
         Delegates to appropriate internal methods.
         '''
-
-        username, _, _, _ = get_current_profile()
+        
+        username, _, _, _ = self.profile_manager.get_current_profile()
 
         try:
             if username is None:
@@ -806,16 +788,16 @@ class Client:
             logger.error(e)
             sys.exit(1)    
 
-        username, ip, port, limit = get_current_profile()
-        check_socket_running(ip, port)
+        username, ip, port, limit = self.profile_manager.get_current_profile()
+        self.client_socket_manager.check_if_socket_running()
 
         i = args.ip or ip
         p = args.port or port
         l = args.limit_max_process or limit
 
         if args.ip or args.port:
-            check_ip_valid(i, p)
-        update_profile(username, i, p, l)
+            self.client_socket_manager.check_ip_valid()
+        self.profile_manager.update_profile(username, i, p, l)
 
         if args.verbose:
             logger.info('Configuration has been saved successfully')
@@ -827,7 +809,7 @@ class Client:
         - Prints them
         '''
 
-        _, ip, port, limit = get_current_profile()
+        _, ip, port, limit = self.profile_manager.get_current_profile()
         print(f'{BOLD}HOST IP ADDRESS:{RESET}', ip)
         print(f'{BOLD}PORT:{RESET}', port)
         print(f'{BOLD}MAXIMUM PROCESS LIMIT:{RESET}', limit)

@@ -32,7 +32,7 @@ class CliManager:
     def create_parser(self) -> argparse.Namespace:
         '''
         Creates and configures the argument parser for the CLI.
-        - Defines main commands: config, start, stop, status, add, rm, rename, ps, ls, report, reset
+        - Defines main commands
         - Adds subcommands and their specific arguments
         - Supports custom validation for tracking IDs
         Returns the parsed arguments namespace.
@@ -45,16 +45,6 @@ class CliManager:
         parser.add_argument('-v', '--version', action='version', version=f'v{__version__}')
 
         subparsers = parser.add_subparsers(dest='command', required=True)
-
-        config_parser = subparsers.add_parser('config', help='manage configuration')
-        config_subparsers = config_parser.add_subparsers(dest='subcommand', required=True)
-
-        config_set_parser = config_subparsers.add_parser('set', help='set configuration')
-        config_set_parser.add_argument('-i', '--ip', help='set host ip address')
-        config_set_parser.add_argument('-p', '--port', type=int, help='set port number')
-        config_set_parser.add_argument('-l', '--limit_max_process', type=int, help='set the maximum number of concurrently tracked processes')
-        config_set_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
-        config_show_parser = config_subparsers.add_parser('show', help='show current configuration')
         
         start_parser = subparsers.add_parser('start', help='start server')
         start_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
@@ -65,6 +55,8 @@ class CliManager:
 
         status_parser = subparsers.add_parser('status', help='show the status of the server')
 
+        ls_parser = subparsers.add_parser('ls', help='list all processes')
+
         add_parser = subparsers.add_parser('add', help='start tracking a process')
         add_parser.add_argument('process', help='process name or pid to track')
         add_parser.add_argument('-n', '--name', type=self._len_check, help='add custom tracking id')
@@ -74,16 +66,19 @@ class CliManager:
         rm_parser.add_argument('id', help='id of the tracked process to stop')
         rm_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
 
+        ps_parser = subparsers.add_parser('ps', help='show status of tracked processes')
+        ps_parser.add_argument('-a', '--all', action='store_true', help='show both currently tracked and stopped processes')
+        ps_parser.add_argument('-d', '--detailed', action='store_true', help='show detailed information about tracked processes')
+
         rename_parser = subparsers.add_parser('rename', help='rename tracking id of a process')
         rename_parser.add_argument('id', help='current tracking id')
         rename_parser.add_argument('new_id', type=self._len_check, help='new tracking id')
         rename_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
 
-        ps_parser = subparsers.add_parser('ps', help='show status of tracked processes')
-        ps_parser.add_argument('-a', '--all', action='store_true', help='show both currently tracked and stopped processes')
-        ps_parser.add_argument('-d', '--detailed', action='store_true', help='show detailed information about tracked processes')
-        
-        ls_parser = subparsers.add_parser('ls', help='list all processes')
+        report_parser = subparsers.add_parser('report', help='show report')
+        report_parser.add_argument('--daily', default=True, action='store_true', help='show daily report')
+        report_parser.add_argument('--weekly', action='store_true', help='show weekly report')
+        report_parser.add_argument('--monthly', action='store_true', help='show monthly report')
 
         user_parser = subparsers.add_parser('user', help='manage users')
         user_subparsers = user_parser.add_subparsers(dest='subcommand', required=True)
@@ -104,10 +99,15 @@ class CliManager:
         user_rename_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
         user_list_parser = user_subparsers.add_parser('ls', help='list all users')
 
-        report_parser = subparsers.add_parser('report', help='show report')
-        report_parser.add_argument('--daily', default=True, action='store_true', help='show daily report')
-        report_parser.add_argument('--weekly', action='store_true', help='show weekly report')
-        report_parser.add_argument('--monthly', action='store_true', help='show monthly report')
+        config_parser = subparsers.add_parser('config', help='manage configuration')
+        config_subparsers = config_parser.add_subparsers(dest='subcommand', required=True)
+
+        config_set_parser = config_subparsers.add_parser('set', help='set configuration')
+        config_set_parser.add_argument('-i', '--ip', help='set host ip address')
+        config_set_parser.add_argument('-p', '--port', type=int, help='set port number')
+        config_set_parser.add_argument('-l', '--limit_max_process', type=int, help='set the maximum number of concurrently tracked processes')
+        config_set_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
+        config_show_parser = config_subparsers.add_parser('show', help='show current configuration')
 
         reset_parser = subparsers.add_parser('reset', help='reset program')
         reset_parser.add_argument('target', choices=['all', 'config', 'logs'], help='what to reset')
@@ -128,27 +128,27 @@ class CliManager:
         client = self.client 
         server = self.server
 
-        if command == 'config':
-            client.config_handler(args)
-        elif command == 'start':
+        if command == 'start':
             server.run_server(args.verbose)
         elif command == 'stop':
             client.stop_handler(args)
         elif command == 'status':
             client.status_handler()
+        elif command == 'ls':
+            client.ls_handler()
         elif command == 'add':
             client.add_handler(args)
         elif command == 'rm':
             client.rm_handler(args)
-        elif command == 'rename':
-            client.rename_handler(args)
         elif command == 'ps':
             client.ps_handler(args)
-        elif command == 'ls':
-            client.ls_handler()
-        elif command == 'user':
-            client.user_handler(args)
+        elif command == 'rename':
+            client.rename_handler(args)
         elif command == 'report':
             client.report_handler(args)
+        elif command == 'user':
+            client.user_handler(args)
+        elif command == 'config':
+            client.config_handler(args)
         elif command == 'reset':
             client.reset_handler(args)

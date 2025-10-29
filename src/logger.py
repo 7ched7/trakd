@@ -1,12 +1,5 @@
 import logging
-
-RESET = '\033[0m'
-BOLD = '\033[1m'
-GREY = '\033[90m'
-YELLOW = '\033[93m'
-GREEN = "\033[32m"
-RED = '\033[31m'
-RED_LIGHT = '\033[91m'
+from constants import RED, YELLOW, GREY, RED_LIGHT, BOLD, RESET 
 
 class AnsiColorFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord):
