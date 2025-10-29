@@ -704,7 +704,7 @@ class Client:
             self._is_valid_username(new_username)
 
             if not self.profile_manager.rename_profile(old_username, new_username):
-                raise Exception(f'User \'{old_username}\' does not exist')
+                raise Exception('Ensure the user you try to modify exists and the new username is not taken')
 
             if args.verbose:
                 logger.info(f'User \'{old_username}\' has been renamed to \'{new_username}\'')

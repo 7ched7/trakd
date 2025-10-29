@@ -208,6 +208,10 @@ class ProfileManager:
         new_dir = os.path.expanduser(f'~/.trakd/logs/{new_username}')
 
         def modifier(profiles):
+            if any(
+                p['username'].strip() == new_username.strip() for p in profiles):
+                return False
+
             for p in profiles:
                 if p['username'].strip() == old_username.strip():
                     p['username'] = new_username
