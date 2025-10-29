@@ -16,17 +16,17 @@
 
 1. **Download the release archive**
 ```sh
-$ wget https://github.com/7ched7/trakd/releases/download/v0.3.0/trakd-v0.3.0.tar.gz
+$ wget https://github.com/7ched7/trakd/releases/download/v0.3.1/trakd-v0.3.1.tar.gz
 ```
 
 2. **Extract the archive**
 ```sh
-$ tar -xzvf trakd-v0.3.0.tar.gz
+$ tar -xzvf trakd-v0.3.1.tar.gz
 ```
 
 3. **Install the application**
 ```sh
-$ cd trakd-v0.3.0
+$ cd trakd-v0.3.1
 $ ./install.sh
 ```
 
@@ -43,7 +43,7 @@ $ trakd -v
 <summary>start</summary>
 
 - **`$ trakd start`**  
-Start the server using the IP address and port from user config
+Start the server using the IP address and port from user configuration
 
 </details>
 
@@ -55,6 +55,21 @@ Normal stop (fails if processes are tracked)
 
 - **`$ trakd stop -f`**  
 Force stop (terminates all tracking and shuts down)
+
+</details>
+
+<details>
+<summary>status</summary>
+
+- **`$ trakd status`**  
+Provide information about server and status of tracked processes
+
+> **Example output**
+```sh
+SERVER: running
+HOST: 127.0.0.1:10101
+TRACKED PROCESSES: 2 (1 running, 1 stopped) 
+```
 
 </details>
 
@@ -77,6 +92,14 @@ Track by pid
 
 - **`$ trakd add <process_name> -n <id>`**  
 Add with custom tracking id
+
+</details>
+
+<details>
+<summary>rm</summary>
+
+- **`$ trakd rm <id>`**  
+Stop tracking a specific process
 
 </details>
 
@@ -112,38 +135,10 @@ Rename the tracking identifier
 </details>
 
 <details>
-<summary>status</summary>
-
-- **`$ trakd status`**  
-
-> **Example output**
-```sh
-SERVER: running
-HOST: 127.0.0.1:10101
-TRACKED PROCESSES: 2 (1 running, 1 stopped) 
-```
-
-</details>
-
-<details>
-<summary>rm</summary>
-
-- **`$ trakd rm <id>`**  
-Stop tracking a specific process
-
-</details>
-
-<details>
 <summary>report</summary>
 
-- **`$ trakd report`**  
+- **`$ trakd report --daily | --weekly | --monthly`**  
 Report program usage (default: daily)
-
-- **`$ trakd report --daily`**  
-
-- **`$ trakd report --weekly`**  
-
-- **`$ trakd report --monthly`**  
 
 > **Example output**
 ```sh
@@ -185,10 +180,10 @@ Remove an existing user by specifying the username
 <summary>config</summary>
 
 - **`trakd config set -i 127.0.0.1 -p 8000 -l 8`**  
-Set IP address, port, and maximum number of tracked programs
+Set IP address, port, and maximum number of tracked processes
 
 - **`$ trakd config show`**  
-Show user config
+Show current user configuration
 
 > **Example output**
 ```sh
@@ -206,10 +201,10 @@ MAXIMUM PROCESS LIMIT: 8
 Clear tracking logs
 
 - **`$ trakd reset config`**  
-Reset user config
+Reset current user configuration
 
 - **`$ trakd reset all`**  
-Full reset
+Full reset (logs + config)
 
 - **`$ trakd reset all -y -v`**  
 Full reset, skip prompts, verbose output
@@ -220,4 +215,4 @@ Full reset, skip prompts, verbose output
 Pull requests, issues, and feature ideas are warmly welcome!
 
 ## License
-This project is licensed under the MIT License. See the [MIT](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
