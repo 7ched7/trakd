@@ -1,4 +1,7 @@
 import argparse
+import sys
+from logger import logger
+from constants import YELLOW, GREY, BOLD, RESET
 from client import Client
 from server import Server
 from __version__ import __version__
@@ -8,6 +11,23 @@ class CliManager:
     CLI Manager class: handles command-line interface parsing and delegates
     commands to the Client and Server instances.
     '''
+
+    class CustomArgumentParser(argparse.ArgumentParser):
+        '''
+        Custom ArgumentParser that overrides the default error handling.
+        Instead of printing the full argparse error message,
+        it logs a clean error and shows only the available subcommand choices.
+        '''
+
+        def error(self, message: str) -> None:
+            logger.error('Invalid command')
+            if 'invalid choice' in message:
+                start_index = message.find('choose from') + len('choose from')
+                choices_part = message[start_index:].strip()
+                choices = choices_part.strip('()').split(', ')
+                available_commands = ', '.join(choices)
+                print(f'{BOLD}Choose from:{RESET} {YELLOW}{available_commands}{RESET}')
+            sys.exit(2) 
 
     def __init__(self, client: Client, server: Server):
         '''
@@ -38,13 +58,13 @@ class CliManager:
         Returns the parsed arguments namespace.
         '''
 
-        parser = argparse.ArgumentParser(
+        parser = self.CustomArgumentParser(
             prog='trakd',
             description='Keep track of process runtime',
         )
         parser.add_argument('-v', '--version', action='version', version=f'v{__version__}')
 
-        subparsers = parser.add_subparsers(dest='command', required=True)
+        subparsers = parser.add_subparsers(dest='command')
         
         start_parser = subparsers.add_parser('start', help='start server')
         start_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
@@ -90,7 +110,7 @@ class CliManager:
         user_rm_parser = user_subparsers.add_parser('rm', help='remove a user')
         user_rm_parser.add_argument('username')
         user_rm_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
-        user_switch_parser = user_subparsers.add_parser('switch', help='switch user')
+        user_switch_parser = user_subparsers.add_parser('switch', help='switch to user')
         user_switch_parser.add_argument('username')
         user_switch_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
         user_rename_parser = user_subparsers.add_parser('rename', help='rename username')
@@ -115,10 +135,10 @@ class CliManager:
         reset_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
 
         args = parser.parse_args()
+    
+        self._arg_controller(args)
 
-        return args
-
-    def arg_controller(self, args: argparse.Namespace) -> None:
+    def _arg_controller(self, args: argparse.Namespace) -> None:
         '''
         Controls CLI commands based on the parsed arguments.
         Delegates each command to the appropriate method in Client or Server.
@@ -128,7 +148,9 @@ class CliManager:
         client = self.client 
         server = self.server
 
-        if command == 'start':
+        if args.command == None: 
+            print(f'{BOLD}TRAKD {__version__}{RESET} - {GREY}Keep track of process runtime{RESET}\nStart using with {YELLOW}\'trakd --help\'{RESET}')
+        elif command == 'start':
             server.run_server(args.verbose)
         elif command == 'stop':
             client.stop_handler(args)

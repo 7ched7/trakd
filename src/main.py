@@ -7,8 +7,7 @@ def main() -> None:
     server = Server()
     cli_manager = CliManager(client=client, server=server)
 
-    args = cli_manager.create_parser() 
-    cli_manager.arg_controller(args)
+    cli_manager.create_parser() 
 
 if __name__ == '__main__':
     main()
