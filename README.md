@@ -1,5 +1,10 @@
 # TRAKD  
-**Trakd** is a lightweight and socket-based CLI (Command Line Interface) program tracking and time reporting tool for the Linux operating system. Ideal for anyone looking to better manage their time, understand how much time is spent on different programs, and monitor process activity directly from the terminal. With a clean and scriptable interface, it allows seamless integration into your daily workflow, giving you insights into your productivity, and enabling detailed time reporting.
+
+<p>
+  <img src="https://img.shields.io/badge/version-0.3.1-blue" alt="Version" />
+</p>
+
+**Trakd** is a lightweight and socket-based CLI (Command Line Interface) program tracking and time reporting tool for the Linux operating system. Ideal for anyone looking to better manage their time, understand how much time is spent on different programs, and monitor process activity directly from the terminal.
 
 **Why Trakd?**
 * **Minimal and fast** - No GUI distractions
@@ -51,7 +56,7 @@ Start the server using the IP address and port from user configuration
 <summary>stop</summary>
 
 - **`$ trakd stop`**  
-Normal stop (fails if processes are tracked)
+Stop the server (fails if processes are tracked)
 
 - **`$ trakd stop -f`**  
 Force stop (terminates all tracking and shuts down)
@@ -62,7 +67,7 @@ Force stop (terminates all tracking and shuts down)
 <summary>status</summary>
 
 - **`$ trakd status`**  
-Provide information about server and status of tracked processes
+Provide information about the server and the status of tracked processes
 
 > **Example output**
 ```sh
@@ -179,7 +184,7 @@ Remove an existing user by specifying the username
 <details>
 <summary>config</summary>
 
-- **`trakd config set -i 127.0.0.1 -p 8000 -l 8`**  
+- **`$ trakd config set -i <ip_address> -p <port> -l <limit>`**  
 Set IP address, port, and maximum number of tracked processes
 
 - **`$ trakd config show`**  

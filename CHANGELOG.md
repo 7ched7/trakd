@@ -1,9 +1,18 @@
+## Version 0.3.1 - 10/29/2025
+### Improvement
+- Improve CLI error handling and messaging
+### Refactor
+- Refactor the project to utilize a class-based structure, removing utility functions for better maintainability
+### Fixed
+- Fix an error occurred when the process following the program suddenly stopped
+- Fix a bug when renaming user to prevent conflicts
+
 ## Version 0.3.0 - 10/28/2025
 ### Added
 - Multi-user feature: Users can be created, deleted, switched between and renamed
 - Colored output support for enhanced readability
 ### Fixed
-- Prevented the program from tracking itself
+- Prevent the program from tracking itself
 
 ## Version 0.2.0 - 06/05/2025
 ### Added
