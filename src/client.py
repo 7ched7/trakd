@@ -18,9 +18,8 @@ from manager import (
     LogManager,
     ClientSocketManager
 )
-from daemon import daemon
 from logger import logger
-from constants import GREEN, YELLOW, BOLD, RESET 
+from constants import is_windows, GREEN, YELLOW, BOLD, RESET 
 from datetime import datetime, timedelta
 from argparse import Namespace 
 from tabulate import tabulate
@@ -65,12 +64,15 @@ class Client:
         event = self.event
 
         try:
+            logger.info('Connection handler started')
+
             while not event.is_set():
                 ready_to_read, _, _ = select.select([client_socket], [], [], 1)
 
                 if ready_to_read:
                     data = client_socket.recv(4096).decode('utf-8')
                     if data == 'stop':
+                        logger.info('Received stop signal, stopping connection handler')
                         event.set()
                         break
                 
@@ -85,9 +87,11 @@ class Client:
             logger.error(f'Error during connection control: {e}')
             sys.exit(1)
         finally:
+            event.set()
+            logger.info('Closing client socket')
             client_socket.close()
 
-    def _notify_socket(self, args: Namespace, limit: int) -> None:
+    def _notify_socket(self, args: Namespace) -> None:
         '''
         Establishes initial connection to the server and sends process information to track.
         - Checks if the process is running
@@ -96,8 +100,12 @@ class Client:
         '''
 
         self.client_socket_manager.create_connection()
+        logger.info('Connection established to the server')
+
+        _, _, _, limit = self.profile_manager.get_current_profile()
 
         try:
+            logger.info(f'Getting process information for {args.process}')
             process_info = self._get_process(args.process)
 
             if not process_info:
@@ -106,6 +114,8 @@ class Client:
             process_name = process_info['name']    
             start_time = datetime.now()
             id = args.name or secrets.token_hex(6)
+
+            logger.info(f'Generated/Provided ID: {id}')
 
             json_data = {
                 'command': args.command,
@@ -119,11 +129,10 @@ class Client:
                 }
             }
 
+            logger.info('Sending data to server for tracking...')
             received_data = self.client_socket_manager.send_data(json_data).lower()
 
-            if received_data == 'ok' and args.verbose:
-                logger.info(f'Tracking started: {process_name}')
-            elif received_data == 'duplicate id':
+            if received_data == 'duplicate id':
                 raise Exception(f'Id \'{args.name}\' is already in use')
             elif received_data == 'duplicate process':
                 raise Exception(f'Already tracking \'{process_name}\'')
@@ -132,6 +141,7 @@ class Client:
                 raise Exception(f'Maximum process tracking limit exceeded. You can only run up to {limit} {process_word} simultaneously')
 
             self.process_name = process_name
+            self.process_pid = process_info['pid']    
             self.start_time = start_time
         except Exception as e:
             logger.error(e)
@@ -172,7 +182,8 @@ class Client:
         if proc.pid == os.getpid():
             return True
         
-        if proc.info['name'].lower() == 'trakd':
+        name = 'trakd.exe' if is_windows else 'trakd'
+        if proc.info['name'].lower() == name:
             return True
 
         try:
@@ -205,6 +216,8 @@ class Client:
         process_name = self.process_name
         process_pid = self.process_pid
 
+        logger.info(f'Tracking started: {process_name}')
+
         self.log_manager.save_start_time(process_name, start_time)
         self.log_manager.save_end_time(process_name, start_time)
         
@@ -217,27 +230,30 @@ class Client:
 
             if process_info:
                 if process_pid != None and process_pid != process_info['pid']:
+                    logger.info(f'Process {process_name} started')
                     json_data = { 'command': 'update', 'status': 'running', process_info['name']: process_info['pid'] }
                     queue.put(json_data)
 
-                process_pid = process_info['pid']
+                process_pid = self.process_pid = process_info['pid']
 
                 if not start_time:
-                    start_time = now
+                    start_time = self.start_time = now
                     self.log_manager.save_start_time(process_name, start_time)
                     self.log_manager.save_end_time(process_name, start_time)
                     next_save = start_time + save_interval
             elif not process_info and start_time:
+                logger.info(f'Process {process_name} stopped')
                 json_data = { 'command': 'update', 'status': 'stopped', process_name: None }
                 queue.put(json_data)
                 self.log_manager.save_end_time(process_name, start_time)
-                start_time = None
+                start_time = self.start_time = None
 
             if now >= next_save and start_time:
                 self.log_manager.save_end_time(process_name, start_time)
                 next_save = now + save_interval
             
             if event.is_set():
+                logger.info(f'Stopping tracking of {process_name}')
                 if start_time:
                     self.log_manager.save_end_time(process_name, start_time)
                 break
@@ -246,43 +262,78 @@ class Client:
 
     def _signal_handler(self) -> None:
         '''
-        Registers SIGTERM and SIGINT handlers to ensure process end times are saved 
-        and threads are properly stopped.
+        Registers SIGTERM and SIGINT handlers.
         '''
 
-        def save_and_exit(s, f) -> None:
-            start_time = self.start_time
-            process_name = self.process_name
+        signal.signal(signal.SIGTERM, self._save_and_exit)
+        signal.signal(signal.SIGINT, self._save_and_exit)
 
-            if start_time:
-                self.log_manager.save_end_time(process_name, start_time)
-                
-            self.event.set()
+    def _wait_for_interrupt(self) -> None:
+        '''
+        Waits for a KeyboardInterrupt signal or until an event is set.
+        Saves process end time when exiting.
+        '''
 
-        signal.signal(signal.SIGTERM, save_and_exit)
-        signal.signal(signal.SIGINT, save_and_exit)
+        try:
+            while not self.event.is_set():
+                time.sleep(1)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            self._save_and_exit(None, None)
+           
+    def _save_and_exit(self, s, f) -> None:
+        '''
+        Saves the process end time and sets the event to signal completion.
+        '''
 
-    @daemon
+        start_time = self.start_time
+        process_name = self.process_name
+
+        if start_time:
+            self.log_manager.save_end_time(process_name, start_time)
+            
+        self.event.set()
+
     def add_handler(self, args: Namespace) -> None:
         '''
-        Starts the client tracking system:
+        Starts the client tracking system.
         - Establishes connection
-        - Sets up signal handlers
+        - Sets up signal and interrupt handlers
         - Runs connection and tracking threads
         ''' 
-
-        username, _, _, limit = self.profile_manager.get_current_profile()
-
-        self._notify_socket(args, limit)
-        self._signal_handler()
-
+        
+        self._notify_socket(args)
+        if not is_windows:
+            self._signal_handler()
+        
         t1 = threading.Thread(target=self._connection_handler)
         t2 = threading.Thread(target=self._track_process)
         t1.start()  
         t2.start()
 
+        if is_windows: 
+            self._wait_for_interrupt()
+
         t1.join()
         t2.join()
+
+    def stop_handler(self) -> None:
+        '''
+        Sends a stop command to the server.
+        '''
+
+        self.client_socket_manager.create_connection()
+
+        try:   
+            self.client_socket_manager.send_data({'command': 'stop'}, wait_for_response=False)
+            logger.info('Stopping the server')
+
+        except Exception as e:
+            logger.error(e)
+            sys.exit(1)
+        finally:
+            self.client_socket_manager.client_socket.close()
 
     def ls_handler(self) -> None:
         '''
@@ -302,29 +353,6 @@ class Client:
                 continue
 
         print(tabulate(rows, headers, tablefmt='simple', numalign='left'))
-
-    def stop_handler(self, args: Namespace) -> None:
-        '''
-        Sends a stop command to the server.
-        - Handles force or non-force stop
-        - Logs messages accordingly
-        '''
-
-        self.client_socket_manager.create_connection()
-
-        try:   
-            data = self.client_socket_manager.send_data({'command': 'stop', 'flag': 'force' if args.force else 'non-force'}).lower()
-                    
-            if data == 'ok' and args.verbose:
-                logger.info('Stopping the server')
-            elif data == 'error':
-                raise Exception('There are still processes being tracked')
-
-        except Exception as e:
-            logger.error(e)
-            sys.exit(1)
-        finally:
-            self.client_socket_manager.client_socket.close()
 
     def status_handler(self) -> None:
         '''
@@ -552,11 +580,11 @@ class Client:
 
         if target == 'all':
             self._reset_config(username, verbose)
-            self._reset_logs(verbose)
+            self._reset_logs()
         elif target == 'config':
             self._reset_config(username, verbose)
         elif target == 'logs':
-            self._reset_logs(verbose)
+            self._reset_logs()
 
     def _reset_config(self, username: str, verbose: bool) -> None:
         '''
@@ -568,7 +596,7 @@ class Client:
         if verbose:
             logger.info('Configuration has been successfully reset to default values')
 
-    def _reset_logs(self, verbose: bool) -> None:
+    def _reset_logs(self) -> None:
         '''
         Deletes all log files in the logs directory.
         Optionally logs each deletion if verbose is True.
@@ -581,8 +609,6 @@ class Client:
             if os.path.isfile(file_path):
                 try:
                     os.remove(file_path)
-                    if verbose:
-                        logger.info(f'{filename} deleted')
                 except Exception:
                     logger.error(f'Could not delete {filename}')
 
@@ -704,7 +730,7 @@ class Client:
             self._is_valid_username(new_username)
 
             if not self.profile_manager.rename_profile(old_username, new_username):
-                raise Exception('Ensure the user you try to modify exists and the new username is not taken')
+                raise Exception('Ensure the user you try to rename exists and the new username is not taken')
 
             if args.verbose:
                 logger.info(f'User \'{old_username}\' has been renamed to \'{new_username}\'')

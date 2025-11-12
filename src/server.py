@@ -2,11 +2,11 @@ import socket
 import threading
 import sys
 import json
+import signal
 from manager import ProfileManager
-from daemon import daemon
 from logger import logger
 from typing import Union, Dict
-from type import AddType, ProcessInfo, RemoveType, RenameType, StopType, StatusType, PsType, UpdateType
+from type import AddType, ProcessInfo, RemoveType, RenameType, StatusType, PsType, UpdateType
 from threading import Event, Lock
 
 class Server:
@@ -38,7 +38,7 @@ class Server:
         - Closes connection when client disconnects or stop_event is set
         '''
 
-        def convert_json(data: str) -> Union[AddType, RemoveType, RenameType, StopType, StatusType, PsType, UpdateType, bool]:
+        def convert_json(data: str) -> Union[AddType, RemoveType, RenameType, StatusType, PsType, UpdateType, bool]:
             try:
                 json_data = json.loads(data)
                 return json_data
@@ -58,25 +58,27 @@ class Server:
             json_data = convert_json(data)
             
             if json_data:
-                if json_data['command'] == 'add':
-                    self.add_handler(conn, json_data)
-                elif json_data['command'] == 'rm':
-                    self.rm_handler(conn, json_data)
-                elif json_data['command'] == 'rename':
-                    self.rename_handler(conn, json_data)
-                elif json_data['command'] == 'stop':
-                    self.stop_handler(conn, json_data)
-                elif json_data['command'] == 'status':
-                    self.status_handler(conn, server_socket)
-                elif json_data['command'] == 'ps':
-                    self.ps_handler(conn, json_data)
-                elif json_data['command'] == 'update':
-                    self.update_handler(json_data)
+                match json_data['command']:
+                    case 'add':
+                        self.add_handler(conn, json_data)
+                    case 'rm':
+                        self.rm_handler(conn, json_data)
+                    case 'rename':
+                        self.rename_handler(conn, json_data)
+                    case 'stop':
+                        self._graceful_shutdown()
+                    case 'status':
+                        self.status_handler(conn, server_socket)
+                    case 'ps':
+                        self.ps_handler(conn, json_data)
+                    case 'update':
+                        self.update_handler(json_data)
+                    case _:
+                        pass
                 
         conn.close()
 
-    @daemon
-    def run_server(self, verbose: str) -> None:
+    def run_server(self, is_service: bool=False) -> None:
         '''
         Starts the server socket and listens for incoming client connections.
         - Binds to IP and port from configuration
@@ -86,7 +88,6 @@ class Server:
         '''
 
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         
         username, ip, port, _ = self.profile_manager.get_current_profile()
 
@@ -97,10 +98,14 @@ class Server:
             logger.error(e)
             sys.exit(1)
 
+        if not is_service: 
+            signal.signal(signal.SIGTERM, self._signal_handler)
+            signal.signal(signal.SIGINT, self._signal_handler)
+
         try:
             server_socket.bind((ip, port))
         except OSError as e:
-            if e.errno == 98:  
+            if e.errno == 98 or 10048:  
                 logger.warning('Server is already up and running')
             elif e.errno == 13 or e.errno == 99:
                 logger.error('There may be a problem with the host IP address and port configuration or lack of permissions')
@@ -109,8 +114,7 @@ class Server:
             sys.exit(1)
 
         server_socket.listen()
-        if verbose:
-            logger.info('Server is up and running')
+        logger.debug('Server is up and running')
 
         threads = []
 
@@ -124,19 +128,30 @@ class Server:
                 threads.append(t)
             except socket.timeout:
                 continue 
+            except KeyboardInterrupt:
+                self._graceful_shutdown()
 
         for t in threads:
             t.join()
 
         server_socket.close()
 
-    def stop_handler(self, conn: socket.socket, json_data: StopType) -> None:
+    def _signal_handler(self, sig, frame):
         '''
-        Handles stop requests from clients.
-        - Non-force stop fails if processes are still running
-        - Force stop terminates all tracked processes
-        - Sends acknowledgment to the client
-        - Sets stop_event to shut down the server
+        Handles SIGTERM/SIGINT signal to ensure proper shutdown.
+        - Calls the graceful shutdown method to stop the server
+        - Exits the program with a success status
+        '''
+
+        self._graceful_shutdown()
+        sys.exit(0)
+
+    def _graceful_shutdown(self) -> None:
+        '''
+        Manages the shutdown process:
+        - Attempts to stop any running tracked processes by sending a 'stop' signal
+        - If processes are still running, sends a stop signal to each process
+        - Sets the stop_event to trigger the server shutdown 
         '''
 
         tracked_processes = self.tracked_processes
@@ -145,22 +160,19 @@ class Server:
         with lock:
             has_running = bool(tracked_processes)
         
-        if json_data['flag'] == 'non-force' and has_running:
-            conn.send(b'error')
-        else:
-            if json_data['flag'] == 'force' and has_running:
-                with lock:
-                    processes_copy = list(tracked_processes.values())
-                    tracked_processes.clear()  
-                for running_process in processes_copy:
-                    process_conn: socket.socket = running_process['conn']
-                    try:
-                        process_conn.sendall('stop'.encode('utf-8'))
-                    except OSError:
-                        continue
-
-            conn.send(b'ok')
-            self.stop_event.set()
+        if has_running:
+            with lock:
+                processes_copy = list(tracked_processes.values())
+                tracked_processes.clear()  
+            for running_process in processes_copy:
+                process_conn: socket.socket = running_process['conn']
+                try:
+                    process_conn.sendall('stop'.encode('utf-8'))
+                except OSError:
+                    continue
+        
+        logger.debug('Stopping the server')
+        self.stop_event.set()
     
     def status_handler(self, conn: socket.socket, server_socket: socket.socket):
         '''
@@ -190,6 +202,7 @@ class Server:
                 else:
                     status_data['stopped'] += 1
 
+        logger.debug(f'Sent server status to client {conn.getpeername()} | Status: {status_data}')
         conn.send(json.dumps(status_data).encode('utf-8'))
 
     def add_handler(self, conn: socket.socket, json_data: AddType) -> None:
@@ -206,6 +219,7 @@ class Server:
 
         _, _, _, limit = self.profile_manager.get_current_profile()
         if not len(tracked_processes) < limit:
+            logger.debug(f'Client {conn.getpeername()} attempted to add a process but reached limit')
             conn.send(b'limit')
             return
         
@@ -215,15 +229,18 @@ class Server:
         with lock:
             for key, value in tracked_processes.items():
                 if process['process_name'].lower() == value['process_name'].lower():
+                    logger.debug(f'Duplicate process name attempt by client {conn.getpeername()}: {process['process_name']}')
                     conn.send(b'duplicate process')
                     return
                 elif key.lower() == id.lower():
+                    logger.debug(f'Duplicate ID attempt by client {conn.getpeername()}: {id}')
                     conn.send(b'duplicate id')
                     return
             
             tracked_processes[id] = process
             tracked_processes[id]['conn'] = conn
 
+        logger.debug(f'Process added by client {conn.getpeername()} | Process ID: {id}')
         conn.send(b'ok')
 
     def rm_handler(self, conn: socket.socket, json_data: RemoveType) -> None:
@@ -242,7 +259,9 @@ class Server:
                 untracked_process = tracked_processes[json_data['process']]
                 process_conn: socket.socket = untracked_process['conn']
                 del tracked_processes[json_data['process']]
+                logger.debug(f'Process {json_data['process']} removed by client {conn.getpeername()}')
             else:
+                logger.warning(f'Client {conn.getpeername()} attempted to remove a non-existent process')
                 conn.send(b'error')
                 return
         try:
@@ -284,12 +303,15 @@ class Server:
                             data[key] = f'{client_host}/{client_port}'
                         except OSError:
                             data[key] = f'Disconnected'
+                            data['pid'] = '--'
+                            data['status'] = '--'
                         continue
                     
                     data[key] = value
 
                 ps_data[track_id] = data
-                
+        
+        logger.debug(f'Sent process status list to client {conn.getpeername()} | Data: {ps_data}')
         conn.sendall(json.dumps(ps_data).encode('utf-8'))
 
     def rename_handler(self, conn: socket.socket, json_data: RenameType) -> None:
@@ -308,11 +330,14 @@ class Server:
 
         with lock:
             if new_id in tracked_processes.keys():
+                logger.debug(f'Client {conn.getpeername()} attempted to rename process but new ID {new_id} is already in use')
                 conn.send(b'duplicate')
                 return
             if id in tracked_processes.keys():
                 tracked_processes[new_id] = tracked_processes.pop(id)            
+                logger.debug(f'Process {id} renamed to {new_id} by client {conn.getpeername()}')
             else:
+                logger.warning(f'Client {conn.getpeername()} attempted to rename a non-existent process: {id}')
                 conn.send(b'error')
                 return
         
@@ -337,3 +362,6 @@ class Server:
                 if process['process_name'] == process_name:
                     process['status'] = status
                     process['pid'] = pid
+                    logger.debug(f'Updated process {process_name} | Status: {status}, PID: {pid}')
+                    return
+            logger.warning(f'Client attempted to update non-existent process: {process_name}')

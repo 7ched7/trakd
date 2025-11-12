@@ -32,9 +32,6 @@ class RenameType(TypedDict, CommandType):
     process: str
     new_id: str
 
-class StopType(TypedDict, CommandType):
-    flag: str
-
 class StatusType(TypedDict, CommandType):
     pass
 

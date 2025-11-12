@@ -1,7 +1,7 @@
 import os
 import shutil
 from typing import Callable, Generator, List, Optional, Tuple
-from constants import DEFAULT_IP_ADDRESS, DEFAULT_PORT, DEFAULT_LIMIT
+from constants import TRAKD_DIR, DEFAULT_IP_ADDRESS, DEFAULT_PORT, DEFAULT_LIMIT
 from filelock import FileLock
 from contextlib import contextmanager
 from type import ProfileType
@@ -9,20 +9,17 @@ from type import ProfileType
 class ProfileManager:
     '''
     Manages user profiles including reading, writing, creating, 
-    deleting, updating, and switching between profiles. Handles the directory and file 
-    operations needed for profile storage.
+    deleting, updating, and switching between profiles. 
+    Handles the directory and file operations needed for profile storage.
     '''
 
     @staticmethod
-    def _trakd_path() -> str:
+    def _create_trakd_dir() -> None:
         '''
-        Returns the path to the directory where profile-related files are stored.
-        - Creates the directory if it does not exist
+        Creates the directory where profile-related files are stored.
         '''
 
-        dir_path = os.path.expanduser('~/.trakd')
-        os.makedirs(dir_path, exist_ok=True)
-        return dir_path
+        os.makedirs(TRAKD_DIR, exist_ok=True)
 
     @staticmethod
     def _profile_path() -> str:
@@ -31,8 +28,8 @@ class ProfileManager:
         - The profile file contains user profile details
         '''
 
-        dir_path = ProfileManager._trakd_path()
-        return os.path.join(dir_path, 'profile')
+        ProfileManager._create_trakd_dir()
+        return os.path.join(TRAKD_DIR, 'profile')
 
     @staticmethod
     @contextmanager
@@ -55,7 +52,7 @@ class ProfileManager:
         profile_path = self._profile_path()
         data = '\n'.join(f'{p['username']}|{p['ip']}|{p['port']}|{p['limit']}|{p['selected']}' for p in profiles) + '\n'
 
-        lock_file = os.path.join(self._trakd_path(), 'lck.lock')
+        lock_file = os.path.join(TRAKD_DIR, 'lck.lock')
         
         with self._manage_lock(lock_file):
             with open(profile_path, 'w', encoding='utf-8') as f:
@@ -69,7 +66,7 @@ class ProfileManager:
 
         profile_path = self._profile_path()
         profiles: List[ProfileType] = []
-        lock_file = os.path.join(self._trakd_path(), 'lck.lock')
+        lock_file = os.path.join(TRAKD_DIR, 'lck.lock')
 
         with self._manage_lock(lock_file):
             try:
@@ -154,7 +151,7 @@ class ProfileManager:
             return True
 
         def post_action():
-            logs_dir = os.path.expanduser(f'~/.trakd/logs/{username}')
+            logs_dir = os.path.join(TRAKD_DIR, 'logs', username)
             os.makedirs(logs_dir, exist_ok=True)
 
         return self._modify_profiles(modifier, post_action)
@@ -172,7 +169,7 @@ class ProfileManager:
             return len(profiles) < old_len
 
         def post_action():
-            logs_dir = os.path.expanduser(f'~/.trakd/logs/{username}')
+            logs_dir = os.path.join(TRAKD_DIR, 'logs', username)
             if os.path.isdir(logs_dir):
                 shutil.rmtree(logs_dir)
 
@@ -204,12 +201,11 @@ class ProfileManager:
         - Renames the user's log directory accordingly
         '''
 
-        old_dir = os.path.expanduser(f'~/.trakd/logs/{old_username}')
-        new_dir = os.path.expanduser(f'~/.trakd/logs/{new_username}')
-
+        old_dir = os.path.join(TRAKD_DIR, 'logs', old_username)
+        new_dir = os.path.join(TRAKD_DIR, 'logs', new_username)
+        
         def modifier(profiles):
-            if any(
-                p['username'].strip() == new_username.strip() for p in profiles):
+            if any(p['username'].strip() == new_username.strip() for p in profiles):
                 return False
 
             for p in profiles:

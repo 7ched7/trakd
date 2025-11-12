@@ -1,8 +1,14 @@
+import os
+import sys
+
 DEFAULT_IP_ADDRESS = '127.0.0.1'
 DEFAULT_PORT = 8000
 DEFAULT_LIMIT = 8
 
-LOGS_DIR_PATH = '~/.trakd/logs'
+is_windows = sys.platform.startswith('win')
+is_frozen = getattr(sys, 'frozen', False)
+
+TRAKD_DIR = os.path.join(os.environ['ProgramData'], 'Trakd') if is_windows else os.path.expanduser('~/.trakd')
 
 RED = '\033[31m'
 YELLOW = '\033[93m'

@@ -3,12 +3,12 @@ from datetime import datetime, timedelta
 from filelock import FileLock
 from contextlib import contextmanager
 from typing import Generator
-from constants import LOGS_DIR_PATH
+from constants import TRAKD_DIR
 
 class LogManager:
     '''
-    Handles logging functionalities for tracking process 
-    start and end times. Manages logs directory, file lock, and provides methods 
+    Handles logging functionalities for tracking process start and end times. 
+    Manages logs directory, file lock, and provides methods 
     to save and retrieve logs for specific processes.
     '''
 
@@ -21,11 +21,13 @@ class LogManager:
         '''
 
         self.username = username
-        self.logs_dir = os.path.expanduser(f'{LOGS_DIR_PATH}/{self.username}')
-        self.lock_file = os.path.join(self.logs_dir, 'lck.lock')
-        
-        if username is not None and not os.path.exists(self.logs_dir):
-            os.makedirs(self.logs_dir)
+
+        if username is not None:
+            self.logs_dir = os.path.join(TRAKD_DIR, 'logs', self.username)
+            self.lock_file = os.path.join(self.logs_dir, 'lck.lock')
+
+            if not os.path.exists(self.logs_dir):
+                 os.makedirs(self.logs_dir)           
     
     @contextmanager
     def _manage_lock(self) -> Generator[None, None, None]:
