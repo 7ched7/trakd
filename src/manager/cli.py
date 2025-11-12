@@ -2,6 +2,7 @@ import argparse
 import sys
 from logger import logger
 from constants import YELLOW, GREY, BOLD, RESET
+from datetime import datetime, date
 from client import Client
 from server import Server
 from __version__ import __version__
@@ -96,9 +97,8 @@ class CliManager:
         rename_parser.add_argument('-v', '--verbose', action='store_true', help='show what is being done')
 
         report_parser = subparsers.add_parser('report', help='show report')
-        report_parser.add_argument('--daily', default=True, action='store_true', help='show daily report')
-        report_parser.add_argument('--weekly', action='store_true', help='show weekly report')
-        report_parser.add_argument('--monthly', action='store_true', help='show monthly report')
+        report_parser.add_argument('-s', '--start', default=datetime.combine(date.today(), datetime.min.time()), help='start date (e.g., "2 months ago", "1 week ago", "2025-06-12")')
+        report_parser.add_argument('-e', '--end', default=datetime.now(), help='end date (e.g., "today", "yesterday", "2025-07-12")')
 
         user_parser = subparsers.add_parser('user', help='manage users')
         user_subparsers = user_parser.add_subparsers(dest='subcommand', required=True)

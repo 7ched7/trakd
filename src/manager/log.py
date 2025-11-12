@@ -87,7 +87,7 @@ class LogManager:
 
         inf = { 
             'start_time': start_time.isoformat(),
-            'end_time': None
+            'end_time': start_time.isoformat()
         }
 
         with self._manage_lock():
