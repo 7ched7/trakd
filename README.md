@@ -30,7 +30,7 @@ $ tar -xzvf trakd-v0.4.0-linux.tar.gz
 3. **Install**
 ```sh
 $ cd trakd-v0.4.0-linux
-$ ./install.sh
+$ sudo ./install.sh
 ```
 
 4. **Verify**
