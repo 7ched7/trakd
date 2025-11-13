@@ -1,42 +1,59 @@
 # TRAKD  
 
-<p>
-  <img src="https://img.shields.io/badge/version-0.3.1-blue" alt="Version" />
-</p>
+![Version](https://img.shields.io/badge/version-0.4.0-blue)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
-**Trakd** is a lightweight and socket-based CLI (Command Line Interface) program tracking and time reporting tool for the Linux operating system. Ideal for anyone looking to better manage their time, understand how much time is spent on different programs, and monitor process activity directly from the terminal.
+**Trakd** is a lightweight and socket-based CLI (Command Line Interface) program tracking and time reporting tool. Ideal for anyone looking to better manage their time, understand how much time is spent on different programs, and monitor process activity directly from the terminal.
 
 **Why Trakd?**
 * **Minimal and fast** - No GUI distractions
-* **Linux-first** - Tailored for terminal lovers
 * **Local-first** - Your data stays on your machine
+* **Terminal-focused** - Tailored for terminal lovers
 * **Scriptable & Automation-ready** – Easily integrate into cron jobs or custom scripts
 * **Insightful reports** - View daily or weekly usage breakdowns
 
 ## Installation
 
-<details open>
+<details>
+<summary>Linux</summary>
 
-<summary>Steps</summary>
-
-1. **Download the release archive**
+1. **Download**
 ```sh
-$ wget https://github.com/7ched7/trakd/releases/download/v0.3.1/trakd-v0.3.1.tar.gz
+$ wget https://github.com/7ched7/trakd/releases/download/v0.4.0/trakd-v0.4.0-linux.tar.gz
 ```
 
-2. **Extract the archive**
+2. **Extract**
 ```sh
-$ tar -xzvf trakd-v0.3.1.tar.gz
+$ tar -xzvf trakd-v0.4.0-linux.tar.gz
 ```
 
-3. **Install the application**
+3. **Install**
 ```sh
-$ cd trakd-v0.3.1
+$ cd trakd-v0.4.0-linux
 $ ./install.sh
 ```
 
-4. **Check the version**
+4. **Verify**
 ```sh
+$ trakd -v
+```
+
+</details>
+
+<details>
+<summary>Windows</summary>
+
+1. **Download**
+<br> [trakd-v0.4.0-win.zip](https://github.com/7ched7/trakd/releases/download/v0.4.0/trakd-v0.4.0-win.zip)
+
+2. **Extract**
+<br> Right-click → **"Extract All..."**
+
+3. **Install**
+<br> Right-click → `install.bat` → **"Run as administrator"**
+
+4. **Verify**
+```cmd
 $ trakd -v
 ```
 
@@ -45,36 +62,31 @@ $ trakd -v
 ## Commands
 
 <details>
-<summary>start</summary>
+<summary>server</summary>
 
-- **`$ trakd start`**  
-Start the server using the IP address and port from user configuration
+- **`$ trakd server install`**  
+Install the socket service as a Windows Service
 
-</details>
+- **`$ trakd server remove`**  
+Remove the Windows socket service
 
-<details>
-<summary>stop</summary>
+- **`$ trakd server enable`**  
+Enable the socket service on Linux (systemd)
 
-- **`$ trakd stop`**  
-Stop the server (fails if processes are tracked)
+- **`$ trakd server disable`**  
+Disable the socket service on Linux
 
-- **`$ trakd stop -f`**  
-Force stop (terminates all tracking and shuts down)
+- **`$ trakd server start`**  
+Start the socket server (uses IP/port from config)
 
-</details>
+- **`$ trakd server start --daemonize`**  
+Start the socket server as a background process
 
-<details>
-<summary>status</summary>
+- **`$ trakd server status`**  
+Show server status and tracked processes
 
-- **`$ trakd status`**  
-Provide information about the server and the status of tracked processes
-
-> **Example output**
-```sh
-SERVER: running
-HOST: 127.0.0.1:10101
-TRACKED PROCESSES: 2 (1 running, 1 stopped) 
-```
+- **`$ trakd server stop`**  
+Stop the running server/service 
 
 </details>
 
@@ -97,6 +109,9 @@ Track by pid
 
 - **`$ trakd add <process_name> -n <id>`**  
 Add with custom tracking id
+
+- **`$ trakd add <process_name> --fg`**  
+Foreground mode
 
 </details>
 
@@ -142,12 +157,17 @@ Rename the tracking identifier
 <details>
 <summary>report</summary>
 
-- **`$ trakd report --daily | --weekly | --monthly`**  
+- **`$ trakd report`**  
 Report program usage (default: daily)
+
+- **`$ trakd report --start "5 months ago" --end "6 days ago"`**  
+Report a specific date range with the --start and --end arguments
+
+- **`$ trakd report --start "2025/05/21" --end "2025/05/27"`**  
 
 > **Example output**
 ```sh
-WEEKLY REPORT - 2025/05/21 - 2025/05/27
+REPORT | 2025/05/21 00:00:00 - 2025/05/27 00:00:00
 
 Process       Total Run Time    Active Days
 ------------------------------------------

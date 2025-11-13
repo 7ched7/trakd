@@ -1,3 +1,9 @@
+## Version 0.4.0 - 11/13/2025
+### Added
+- Windows support
+- Run the socket server in the background as a service (Windows Service, systemd)
+- Flexible date range options for report command  
+
 ## Version 0.3.1 - 10/29/2025
 ### Improvement
 - Improve CLI error handling and messaging
