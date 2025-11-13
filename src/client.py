@@ -9,6 +9,7 @@ import secrets
 import select
 import json
 import re
+import dateparser
 from threading import Event
 from queue import Queue
 from pathlib import Path
@@ -219,7 +220,6 @@ class Client:
         logger.info(f'Tracking started: {process_name}')
 
         self.log_manager.save_start_time(process_name, start_time)
-        self.log_manager.save_end_time(process_name, start_time)
         
         save_interval = timedelta(minutes=5)
         next_save = start_time + save_interval
@@ -239,7 +239,6 @@ class Client:
                 if not start_time:
                     start_time = self.start_time = now
                     self.log_manager.save_start_time(process_name, start_time)
-                    self.log_manager.save_end_time(process_name, start_time)
                     next_save = start_time + save_interval
             elif not process_info and start_time:
                 logger.info(f'Process {process_name} stopped')
@@ -465,9 +464,8 @@ class Client:
 
     def report_handler(self, args: Namespace) -> None:
         '''
-        Generates reports for tracked processes.
-        - Supports daily, weekly, or monthly reports
-        - Includes total runtime and active days
+        Generates a report of process run times and active days.
+        It reads log files, calculates time durations and outputs the results in a tabular format.
         '''
 
         def timedelta_to_str(td: timedelta) -> str:
@@ -484,66 +482,61 @@ class Client:
         try:
             if username is None:
                 raise Exception('Please create a user or switch to an existing user to perform')
+            
+            start_flag = dateparser.parse(str(args.start))
+            end_flag = dateparser.parse(str(args.end))
+
+            if start_flag is None or end_flag is None:
+                raise AttributeError
+
+            if start_flag >= end_flag:
+                raise Exception('The start date cannot be greater than or the same as the end date')
+        except AttributeError:
+            logger.error('Invalid date. Expected format: natural language or ISO date')     
+            sys.exit(1)
         except Exception as e:
             logger.error(e)     
             sys.exit(1)
-            
-        weekly = args.weekly
-        monthly = args.monthly
-        now = datetime.now()
-
+        
         logs_dir = self.log_manager.logs_dir
-
-        headers = [f'{YELLOW}PROCESS{RESET}', f'{YELLOW}TOTAL RUN TIME{RESET}']
-        if weekly or monthly:
-            headers.append(f'{YELLOW}ACTIVE DAYS{RESET}')
+        headers = [f'{YELLOW}PROCESS{RESET}', f'{YELLOW}TOTAL RUN TIME{RESET}', f'{YELLOW}ACTIVE DAYS{RESET}']
         rows = []
+        process_stats = {}
 
-        if weekly or monthly:
-            inf = {}
+        dates_list = []
+        curr_date = start_flag.date()
 
-            day_range = 30 if monthly else 7
+        while curr_date <= end_flag.date():
+            dates_list.append(curr_date.strftime('%Y%m%d'))
+            curr_date += timedelta(days=1)
 
-            for day in range(day_range):
-                t = now - timedelta(days=day)
-                log_file = os.path.join(logs_dir, t.strftime('%Y%m%d'))
-                data = self.log_manager.get_logs(log_file)
-
-                for process, time_info in data.items():
-                    for info in time_info:
-                        start = datetime.fromisoformat(info['start_time'])
-                        end = datetime.fromisoformat(info['end_time']) if info['end_time'] else now
-                        elapsed_time = end - start
-
-                        if process not in inf:
-                            inf[process] = {'total_time': timedelta(), 'active_days': set()}
-
-                        inf[process]['total_time'] += elapsed_time
-                        inf[process]['active_days'].add(start.date())
-
-            for process, info in inf.items():
-                time_inf = timedelta_to_str(info['total_time'])
-                active_days_count = len(info['active_days']) or 1  
-                rows.append([process, time_inf, active_days_count])
-
-            print(f'{f'{BOLD}MONTHLY' if monthly else f'{BOLD}WEEKLY'} REPORT - {(now - timedelta(days=day_range-1)).date()} - {now.date()}{RESET}\n')
-        else:
-            log_file = os.path.join(logs_dir, now.strftime('%Y%m%d'))
+        for date in dates_list:
+            log_file = os.path.join(logs_dir, date)
             data = self.log_manager.get_logs(log_file)
 
             for process, time_info in data.items():
-                total_elapsed_time = timedelta()
                 for info in time_info:
-                    start = datetime.fromisoformat(info['start_time'])
-                    end = datetime.fromisoformat(info['end_time']) if info['end_time'] else now
+                    start = max(datetime.fromisoformat(info['start_time']), start_flag)
+                    end = min(datetime.fromisoformat(info['end_time']), end_flag)
+
                     elapsed_time = end - start
-                    total_elapsed_time += elapsed_time
-                
-                time_inf = timedelta_to_str(total_elapsed_time)
-                rows.append([process, time_inf])
 
-            print(f'{BOLD}DAILY REPORT - {now.date()}{RESET}\n')
+                    if elapsed_time.total_seconds() <= 0:
+                        continue
 
+                    if process not in process_stats:
+                        process_stats[process] = {'total_time': timedelta(), 'active_days': set()}
+
+                    process_stats[process]['total_time'] += elapsed_time
+                    process_stats[process]['active_days'].add(start.date())
+
+        rows = [
+            [process, timedelta_to_str(info['total_time']), len(info['active_days'])]
+            for process, info in process_stats.items()
+        ]
+
+        date_str = f'{start_flag.strftime('%Y/%m/%d %H:%M:%S')} - {end_flag.strftime('%Y/%m/%d %H:%M:%S')}'
+        print(f'{BOLD}REPORT{RESET} | {date_str}', end='\n\n')
         print(tabulate(rows, headers, tablefmt='simple', numalign='left'))
 
     def reset_handler(self, args: Namespace) -> None:
