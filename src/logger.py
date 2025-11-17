@@ -6,7 +6,7 @@ class AnsiColorFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord):
         start_style = {
             'DEBUG': GREY,
-            'INFO': GREY,
+            'INFO': RESET,
             'WARNING': YELLOW,
             'ERROR': RED,
             'CRITICAL': RED_LIGHT + BOLD,
