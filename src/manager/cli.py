@@ -1,5 +1,6 @@
 import argparse
 import os
+import shutil
 import sys
 from pathlib import Path
 import subprocess
@@ -252,6 +253,12 @@ class CliManager:
 
         self._is_admin()
         username, home = self._get_current_user()
+        
+        trakd_path = shutil.which('trakd')
+        if not trakd_path:
+            logger.error('trakd command not found in PATH')
+            logger.error('Make sure trakd is installed and added to your PATH')
+            sys.exit(1)
 
         service_name = 'trakd.service'
         service_path = Path(f'/etc/systemd/system/{service_name}')
@@ -265,7 +272,7 @@ Wants=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/trakd server run
+ExecStart={trakd_path} server run
 User={username}
 WorkingDirectory={home}/.trakd
 StandardOutput=journal
