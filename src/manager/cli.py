@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 from pathlib import Path
 import subprocess
@@ -71,12 +72,10 @@ class CliManager:
         server_subparser = server_parser.add_subparsers(dest='subcommand', required=True)
         
         server_subparser.add_parser('run', help=argparse.SUPPRESS) 
-        if is_windows:
-            server_subparser.add_parser('install', help='install socket service')
-            server_subparser.add_parser('remove', help='remove socket service') 
-        else:
-            server_subparser.add_parser('enable', help='enable socket service')
-            server_subparser.add_parser('disable', help='disable socket service')
+        server_subparser.add_parser('install', help='install socket service')
+        server_subparser.add_parser('remove', help='remove socket service') 
+        server_subparser.add_parser('enable', help='enable socket service')
+        server_subparser.add_parser('disable', help='disable socket service')
         server_start_parser = server_subparser.add_parser('start', help='start socket server')
         server_start_parser.add_argument('-d', '--daemonize', action='store_true', help='daemon mode')
         server_status_parser = server_subparser.add_parser('status', help='show the status of the server')
@@ -152,7 +151,7 @@ class CliManager:
         client = self.client 
         server = self.server
 
-        if args.command == None: 
+        if command == None: 
             print(f'{BOLD}TRAKD v{__version__}{RESET} - {GREY}Keep track of process runtime{RESET}\nStart using with {YELLOW}\'trakd --help\'{RESET}')
             return
         
@@ -167,17 +166,17 @@ class CliManager:
                 daemonize(server.run_server)()  
                 return              
 
-            linux_server_subcommands = ['start', 'enable', 'disable']
-            win_server_subcommands = [linux_server_subcommands[0]] + ['install', 'remove']
+            server_subcommands = ['start', 'install', 'remove', 'enable', 'disable']
             
-            if is_windows and subcommand in win_server_subcommands:
+            if is_windows and subcommand in server_subcommands:
                 self._windows_service_handler(subcommand)
 
-            elif subcommand in linux_server_subcommands:
+            elif subcommand in server_subcommands:
                 self._systemd_handler(subcommand)
             
             elif subcommand == 'status':
                 client.status_handler()
+                
             elif subcommand == 'stop':
                 client.stop_handler()
             return
@@ -197,45 +196,170 @@ class CliManager:
         if command in command_handlers:
             command_handlers[command]()
 
-    def _windows_service_handler(self, subcommand: str):
+    def _windows_service_handler(self, subcommand: str) -> None:
         '''
-        Handles the Windows service by determining if the application is frozen. 
-        Based on the state, it builds the command to either run the executable or the Python script for the service.
+        Handles 'Trakd' service configurations and operations
+        - Enables or disables the Trakd service to start automatically or manually.
+        - For other subcommands, it manages the execution of a service script (service.exe or service.py).
         '''
 
-        if is_frozen:
-            base_path = Path(sys.executable).parent
-            service_path = base_path / 'service.exe'
-            cmd = [str(service_path), subcommand]
-        else:
-            base_path = Path(__file__).resolve().parent.parent
-            service_path = base_path / 'service.py'
-            cmd = [sys.executable, str(service_path), subcommand]
+        self._is_admin()
+
+        if subcommand == 'enable':
+            try:
+                subprocess.run(f'sc config Trakd start=auto', check=True, capture_output=True, text=True)
+            except subprocess.CalledProcessError as e:
+                error_msg = e.stderr.strip() or e.stdout.strip()
+                logger.error(error_msg)
+                sys.exit(1)
         
-        if not service_path.exists():
-            logger.error(f'{'service.exe' if is_frozen else 'service.py'} not found at {base_path}')
-            sys.exit(1)
+        elif subcommand == 'disable':
+            try:
+                subprocess.run(f'sc config Trakd start=demand', check=True, capture_output=True, text=True)
+            except subprocess.CalledProcessError as e:
+                error_msg = e.stderr.strip() or e.stdout.strip()
+                logger.error(error_msg)
+                sys.exit(1)
 
-        subprocess.run(cmd)
+        # start/install/remove
+        else:
+            if is_frozen:
+                base_path = Path(sys.executable).parent
+                service_path = base_path / 'service.exe'
+                cmd = [str(service_path), subcommand]
+            else:
+                base_path = Path(__file__).resolve().parent.parent
+                service_path = base_path / 'service.py'
+                cmd = [sys.executable, str(service_path), subcommand]
+            
+            try:
+                if not service_path.exists():
+                    raise Exception(f'{'service.exe' if is_frozen else 'service.py'} not found at {base_path}')
 
-    def _systemd_handler(self, subcommand: str):
+                subprocess.run(cmd, check=True)
+            except subprocess.CalledProcessError as e:
+                sys.exit(1)
+            except Exception as e:
+                logger.error(e)
+                sys.exit(1)
+    
+    def _systemd_handler(self, subcommand: str) -> None:
         '''
-        Handles the systemd service by checking if the service file exists at the specified path. 
-        It then attempts to run systemd's 'systemctl' command.
+        Handles systemd service operations for the 'trakd' service.
+        - Installs or removes the 'trakd' service on the system
+        - Manages service states (start, stop, enable, disable) using systemd commands
         '''
+
+        self._is_admin()
+        username, home = self._get_current_user()
 
         service_name = 'trakd.service'
         service_path = Path(f'/etc/systemd/system/{service_name}')
 
-        if not service_path.exists():
-            logger.error(f'\'{service_name}\' file not found at {service_path.parent}')
-            sys.exit(1)
+        if subcommand == 'install':
+            service_str = f'''
+[Unit]
+Description=Trakd Socket Server
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/trakd server run
+User={username}
+WorkingDirectory={home}/.trakd
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+'''
+            
+            try:
+                with open(service_path, 'w') as f:
+                    f.write(service_str.strip() + '\n')
+
+                subprocess.run(['systemctl', 'daemon-reload'], check=True)
+                logger.info('Service installed')
+            except subprocess.CalledProcessError as e:
+                sys.exit(1)
+            except Exception as e:
+                logger.error(e)
+                sys.exit(1)
+
+        elif subcommand == 'remove':
+            try:
+                if not service_path.exists():
+                    raise Exception('Service \'trakd\' not found on this system')
+                
+                subprocess.run(['systemctl', 'stop', service_name], check=True)
+                subprocess.run(['systemctl', 'disable', service_name], check=True)
+                subprocess.run(['systemctl', 'daemon-reload'], check=True)
+                
+                service_path.unlink()
+                logger.info('Service removed')
+            except subprocess.CalledProcessError as e:
+                sys.exit(1)
+            except Exception as e:
+                logger.error(e)
+                sys.exit(1)
+
+        # start/enable/disable
+        else:
+            try:
+                if not service_path.exists():
+                    raise Exception('Service \'trakd\' not found on this system')
+
+                cmd = ['systemctl', subcommand, service_name]
+                result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+                if result.stdout.strip():
+                    logger.info(result.stdout.strip())
+            except subprocess.CalledProcessError as e:
+                sys.exit(1)
+            except Exception as e:
+                logger.error(e)
+                sys.exit(1)
+
+    def _is_admin(self) -> None:
+        '''
+        Checks if the current user has administrative (root) privileges.
+        '''
 
         try:
-            cmd = ['systemctl', subcommand, service_name]
-            result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE)
-
-            if result.stdout.strip():
-                logger.info(result.stdout.strip())
-        except subprocess.CalledProcessError:
+            if is_windows:
+                import ctypes
+                if ctypes.windll.shell32.IsUserAnAdmin() == 0:
+                    raise Exception('Administrator privileges required, run the command as administrator')
+            else:
+                if os.getuid() != 0:
+                    raise Exception('Root privileges required, run the command with sudo')
+        except Exception as e:
+            logger.error(e)
             sys.exit(1)
+
+    def _get_current_user(self) -> tuple[str, Path]:
+        '''
+        Retrieves the current user's username and home directory.
+        '''
+
+        import pwd
+
+        if 'SUDO_USER' in os.environ and os.geteuid() == 0:
+            username = os.environ['SUDO_USER']
+            uid = int(os.environ['SUDO_UID'])
+            try:
+                pw_entry = pwd.getpwuid(uid)
+                if pw_entry.pw_name == username:
+                    return username, Path(pw_entry.pw_dir)
+            except (KeyError, ValueError):
+                pass
+
+        try:
+            username = pwd.getpwuid(os.getuid()).pw_name
+            home = Path.home()
+        except Exception:
+            logger.error('An error occurred while retrieving current user information')
+            sys.exit(1)
+
+        return username, home
