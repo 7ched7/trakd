@@ -1,3 +1,7 @@
+## Version 0.4.1 - 11/17/2025
+### Added
+- Support for cross-platform install/remove and enable/disable subcommands (Windows & Linux)
+
 ## Version 0.4.0 - 11/13/2025
 ### Added
 - Windows support

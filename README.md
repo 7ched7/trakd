@@ -1,6 +1,6 @@
 # TRAKD  
 
-![Version](https://img.shields.io/badge/version-0.4.0-blue)
+![Version](https://img.shields.io/badge/version-0.4.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 **Trakd** is a lightweight and socket-based CLI (Command Line Interface) program tracking and time reporting tool. Ideal for anyone looking to better manage their time, understand how much time is spent on different programs, and monitor process activity directly from the terminal.
@@ -19,17 +19,17 @@
 
 1. **Download**
 ```sh
-$ wget https://github.com/7ched7/trakd/releases/download/v0.4.0/trakd-v0.4.0-linux.tar.gz
+$ wget https://github.com/7ched7/trakd/releases/download/v0.4.1/trakd-v0.4.1-linux.tar.gz
 ```
 
 2. **Extract**
 ```sh
-$ tar -xzvf trakd-v0.4.0-linux.tar.gz
+$ tar -xzvf trakd-v0.4.1-linux.tar.gz
 ```
 
 3. **Install**
 ```sh
-$ cd trakd-v0.4.0-linux
+$ cd trakd-v0.4.1-linux
 $ sudo ./install.sh
 ```
 
@@ -44,7 +44,7 @@ $ trakd -v
 <summary>Windows</summary>
 
 1. **Download**
-<br> [trakd-v0.4.0-win.zip](https://github.com/7ched7/trakd/releases/download/v0.4.0/trakd-v0.4.0-win.zip)
+<br> [Trakd Windows](https://github.com/7ched7/trakd/releases/download/v0.4.1/trakd-v0.4.1-win.zip)
 
 2. **Extract**
 <br> Right-click → **"Extract All..."**
@@ -65,22 +65,22 @@ $ trakd -v
 <summary>server</summary>
 
 - **`$ trakd server install`**  
-Install the socket service as a Windows Service
+Install the socket server as a system service (Windows Service or systemd)
 
 - **`$ trakd server remove`**  
-Remove the Windows socket service
+Remove/uninstall the socket server service
 
 - **`$ trakd server enable`**  
-Enable the socket service on Linux (systemd)
+Enable the service to start automatically at boot
 
 - **`$ trakd server disable`**  
-Disable the socket service on Linux
+Disable auto-start (you'll need to start the service manually)
 
 - **`$ trakd server start`**  
 Start the socket server (uses IP/port from config)
 
 - **`$ trakd server start --daemonize`**  
-Start the socket server as a background process
+Start the socket server in the background (detached daemon process)
 
 - **`$ trakd server status`**  
 Show server status and tracked processes
