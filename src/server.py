@@ -3,10 +3,11 @@ import threading
 import sys
 import json
 import signal
+import time
 from manager import ProfileManager
 from logger import logger
 from typing import Union, Dict
-from type import AddType, ProcessInfo, RemoveType, RenameType, StatusType, PsType, UpdateType
+from type import AddType, ProcessInfo, RemoveType, RenameType, ReportType, StatusType, PsType, UpdateType
 from threading import Event, Lock
 
 class Server:
@@ -38,7 +39,7 @@ class Server:
         - Closes connection when client disconnects or stop_event is set
         '''
 
-        def convert_json(data: str) -> Union[AddType, RemoveType, RenameType, StatusType, PsType, UpdateType, bool]:
+        def convert_json(data: str) -> Union[AddType, RemoveType, RenameType, ReportType, StatusType, PsType, UpdateType, bool]:
             try:
                 json_data = json.loads(data)
                 return json_data
@@ -65,6 +66,8 @@ class Server:
                         self.rm_handler(conn, json_data)
                     case 'rename':
                         self.rename_handler(conn, json_data)
+                    case 'report':
+                        self.report_handler(conn)
                     case 'stop':
                         self._graceful_shutdown()
                     case 'status':
@@ -291,10 +294,14 @@ class Server:
 
                 data = {}
                 for key, value in process_info.items():
-                    if key == 'track_pid':
+                    if key == 'track_pid' or key == 'session_time':
                         continue
 
                     if not json_data['detailed'] and key in ('pid', 'conn'):
+                        continue
+
+                    if key == 'runtime' and process_info['session_time'] is not None:
+                        data[key] = process_info['runtime'] + time.time() - process_info['session_time']
                         continue
 
                     if key == 'conn':
@@ -304,6 +311,7 @@ class Server:
                         except OSError:
                             data[key] = f'Disconnected'
                             data['pid'] = '--'
+                            data['runtime'] = '--'
                             data['status'] = '--'
                         continue
                     
@@ -343,6 +351,31 @@ class Server:
         
         conn.send(b'ok')
 
+    def report_handler(self, conn: socket.socket) -> None:
+        '''
+        Handles the generation of a report containing the list of active processes.
+        - Check the status of each tracked process 
+        - Sends the names to the client
+        '''
+        
+        tracked_processes = self.tracked_processes
+        lock = self.lock
+
+        data = {'active_processes': []}
+
+        with lock:
+            for process_info in tracked_processes.values():
+                if process_info['status'] == 'running':
+                    try:
+                        process_info['conn'].getpeername()
+                    except OSError:
+                        continue
+
+                    data['active_processes'].append(process_info['process_name'])
+
+        logger.debug(f'Generated report for active processes: {data['active_processes']}')
+        conn.sendall(json.dumps(data).encode('utf-8'))
+
     def update_handler(self, json_data: UpdateType) -> None:
         '''
         Updates the status and PID of a tracked process.
@@ -356,12 +389,18 @@ class Server:
         status = json_data['status']
         process_name = list(json_data.keys())[2] 
         pid = json_data[process_name]
+        session_time = json_data['session_time']
 
         with lock:
             for process in tracked_processes.values():
                 if process['process_name'] == process_name:
                     process['status'] = status
                     process['pid'] = pid
-                    logger.debug(f'Updated process {process_name} | Status: {status}, PID: {pid}')
+
+                    if session_time is None and process['session_time'] is not None: 
+                        process['runtime'] += time.time() - process['session_time']
+                    process['session_time'] = session_time
+
+                    logger.debug(f'Updated process {process_name} | Status: {status}, PID: {pid}, Session Time: {session_time}')
                     return
             logger.warning(f'Client attempted to update non-existent process: {process_name}')

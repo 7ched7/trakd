@@ -25,10 +25,12 @@ class ClientSocketManager:
         self.timeout = timeout
         self.client_socket: Optional[socket.socket] = None
 
-    def create_connection(self) -> None:
+    def create_connection(self, return_bool: bool=False) -> None:
         '''
         Creates a connection to the server by establishing a socket connection.
-        Handles various exceptions that may occur during the connection process.
+        - Attempts to connect to the specified server IP and port
+        - Returns True if the connection is successful and return_bool is True
+        - Handles different exceptions and logs them
         '''
 
         try:
@@ -39,31 +41,41 @@ class ClientSocketManager:
             self.client_socket.settimeout(self.timeout)
 
             self.client_socket.connect((self.ip, self.port))
+            if return_bool: return True
         except ConnectionRefusedError:
+            if return_bool: return False
             logger.error('Server is down')
             sys.exit(1)
         except socket.gaierror:
+            if return_bool: return False
             logger.error(f'Address-related error connecting to {self.ip}:{self.port}')
             sys.exit(1)
         except socket.error:
+            if return_bool: return False
             logger.error(f'There may be a problem with the host ip address and port configuration')
             sys.exit(1)
         except Exception as e:
+            if return_bool: return False
             logger.error(e)
             sys.exit(1)
 
-    def check_if_socket_running(self) -> None:
+    def check_if_socket_running(self, return_bool: bool=False) -> None:
         '''
-        Checks if the server is running and prevents connection while the server is active.
-        This function raises an exception if the server is already running.
+        Checks if the server socket is already running by attempting to create a connection.
+        - If successful, raises an exception to prevent further actions while the server is running
+        - Returns True if the socket is running and return_bool is True, otherwise returns False
+        - Handles different exceptions and logs them
         '''
 
         try:
             with socket.create_connection((self.ip, self.port), timeout=self.timeout):
+                if return_bool: return True
                 raise Exception('Cannot be performed while the server is running')
         except (socket.error, socket.timeout, OSError, socket.gaierror):
+            if return_bool: return False
             pass
         except Exception as e:
+            if return_bool: return False
             logger.error(e)
             sys.exit(1)
         except KeyboardInterrupt:

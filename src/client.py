@@ -20,7 +20,7 @@ from manager import (
     ClientSocketManager
 )
 from logger import logger
-from constants import is_windows, GREEN, YELLOW, BOLD, RESET 
+from constants import is_windows, GREEN, GREY, YELLOW, BOLD, RESET 
 from datetime import datetime, timedelta
 from argparse import Namespace 
 from tabulate import tabulate
@@ -125,6 +125,8 @@ class Client:
                     'pid': process_info['pid'],
                     'track_pid': os.getpid(),
                     'start_time': start_time.strftime('%Y/%m/%d %H:%M:%S'),
+                    'session_time': time.time(),
+                    'runtime': 0.0,
                     'status': 'running',
                     'conn': None
                 }
@@ -231,7 +233,13 @@ class Client:
             if process_info:
                 if process_pid != None and process_pid != process_info['pid']:
                     logger.info(f'Process {process_name} started')
-                    json_data = { 'command': 'update', 'status': 'running', process_info['name']: process_info['pid'] }
+
+                    json_data = {
+                        'command': 'update', 
+                        'status': 'running', 
+                        process_info['name']: process_info['pid'],
+                        'session_time': time.time()
+                    }
                     queue.put(json_data)
 
                 process_pid = self.process_pid = process_info['pid']
@@ -242,7 +250,13 @@ class Client:
                     next_save = start_time + save_interval
             elif not process_info and start_time:
                 logger.info(f'Process {process_name} stopped')
-                json_data = { 'command': 'update', 'status': 'stopped', process_name: None }
+
+                json_data = {
+                    'command': 'update', 
+                    'status': 'stopped', 
+                    process_name: None,
+                    'session_time': None
+                }
                 queue.put(json_data)
                 self.log_manager.save_end_time(process_name, start_time)
                 start_time = self.start_time = None
@@ -417,16 +431,22 @@ class Client:
         try:
             data = json.loads(data)
 
-            headers = [f'{YELLOW}TRACK ID{RESET}', f'{YELLOW}PROCESS{RESET}', f'{YELLOW}STARTED{RESET}', f'{YELLOW}STATUS{RESET}']
+            headers = [f'{YELLOW}TRACK ID{RESET}', f'{YELLOW}PROCESS{RESET}', f'{YELLOW}STARTED{RESET}', f'{YELLOW}RUNTIME{RESET}', f'{YELLOW}STATUS{RESET}']
             if args.detailed:
                 headers.insert(2, f'{YELLOW}PID{RESET}')
                 headers.append(f'{YELLOW}CONNECTION{RESET}')
             rows = []
 
-            for track_id, process_information in data.items():
+            for track_id, process_info in data.items():
                 pl = []
                 pl.append(track_id)
-                pl.extend([ '--' if information == None else information for information in process_information.values() ])
+
+                runtime = process_info['runtime']
+                if isinstance(runtime, float):
+                    runtime_td = timedelta(seconds=runtime)
+                    process_info['runtime'] = self.timedelta_to_str(runtime_td)
+
+                pl.extend([ '--' if info == None else info for info in process_info.values() ])
                 rows.append(pl)
 
             print(tabulate(rows, headers, tablefmt='simple', numalign='left'))
@@ -468,15 +488,6 @@ class Client:
         It reads log files, calculates time durations and outputs the results in a tabular format.
         '''
 
-        def timedelta_to_str(td: timedelta) -> str:
-            total_seconds = int(td.total_seconds())
-            
-            hours = (total_seconds) // 3600
-            minutes = (total_seconds % 3600) // 60
-            seconds = total_seconds % 60
-
-            return f'{hours}h {minutes}m {seconds}s'
-        
         username, _, _, _ = self.profile_manager.get_current_profile()
 
         try:
@@ -521,23 +532,66 @@ class Client:
 
                     elapsed_time = end - start
 
-                    if elapsed_time.total_seconds() <= 0:
+                    if elapsed_time.total_seconds() < 0:
                         continue
 
                     if process not in process_stats:
-                        process_stats[process] = {'total_time': timedelta(), 'active_days': set()}
+                        process_stats[process] = {
+                            'total_time': timedelta(), 
+                            'active_days': set(), 
+                            'status': ''
+                        }
 
                     process_stats[process]['total_time'] += elapsed_time
                     process_stats[process]['active_days'].add(start.date())
 
-        rows = [
-            [process, timedelta_to_str(info['total_time']), len(info['active_days'])]
-            for process, info in process_stats.items()
-        ]
+        connection = self.client_socket_manager.create_connection(return_bool=True)
+        has_active = False
+
+        if connection:
+            data = self.client_socket_manager.send_data({'command': 'report'})
+            
+            try:
+                data = json.loads(data)
+            except json.decoder.JSONDecodeError:
+                logger.error(f'There was a problem retrieving the active processes data, please try again')
+                sys.exit(1)
+
+            for active_process in data['active_processes']:
+                if active_process in process_stats.keys():
+                    process_stats[active_process]['status'] = '*'
+                    has_active = True
+        
+        for process, info in process_stats.items():
+            prefix = f'{GREEN}{info['status']}{RESET}'
+            rows.append([
+                prefix + process, 
+                self.timedelta_to_str(info['total_time']), 
+                len(info['active_days'])
+            ])
 
         date_str = f'{start_flag.strftime('%Y/%m/%d %H:%M:%S')} - {end_flag.strftime('%Y/%m/%d %H:%M:%S')}'
         print(f'{BOLD}REPORT{RESET} | {date_str}', end='\n\n')
-        print(tabulate(rows, headers, tablefmt='simple', numalign='left'))
+        print(tabulate(rows, headers, tablefmt='simple', numalign='left'), end='\n\n')
+
+        if connection and has_active:
+            print(f'{GREY}Note: Durations are updated every 5 minutes.{RESET}')
+            print(f'{GREY}Active programs (*) are still running — the last ~5 minutes of usage may not be reflected yet.{RESET}')
+            print(f'{GREY}Use \'ps\' to see real-time session durations.{RESET}', end='\n\n')
+
+    def timedelta_to_str(self, td: timedelta) -> str:
+        '''
+        Converts a timedelta object into a human-readable string format 
+        (hours, minutes, seconds).
+        '''
+        
+        total_seconds = int(td.total_seconds())
+        
+        hours = (total_seconds) // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+
+        return f'{hours}h {minutes}m {seconds}s'
 
     def reset_handler(self, args: Namespace) -> None:
         '''

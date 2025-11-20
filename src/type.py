@@ -21,6 +21,8 @@ class ProcessInfo(TypedDict):
     pid: int
     track_pid: int
     start_time: str
+    session_time: float
+    runtime: float
     status: str
     conn: Optional[object]
 AddType = Union[CommandType, Dict[str, ProcessInfo]]
@@ -32,6 +34,9 @@ class RenameType(TypedDict, CommandType):
     process: str
     new_id: str
 
+class ReportType(TypedDict, CommandType):
+    pass
+
 class StatusType(TypedDict, CommandType):
     pass
 
@@ -41,4 +46,5 @@ class PsType(TypedDict, CommandType):
 
 class UpdateInfo(TypedDict, CommandType):
     status: str
+    session_time: float
 UpdateType = Union[UpdateInfo, Dict[str, int]]
