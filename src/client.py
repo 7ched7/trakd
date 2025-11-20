@@ -49,6 +49,7 @@ class Client:
         self.event: Event = Event()
         self.queue = Queue()
         self.process_name: str = None
+        self.id: str = None
         self.process_pid: int = None
         self.start_time: datetime = None
     
@@ -92,7 +93,7 @@ class Client:
             logger.info('Closing client socket')
             client_socket.close()
 
-    def _notify_socket(self, args: Namespace) -> None:
+    def _notify_socket(self) -> None:
         '''
         Establishes initial connection to the server and sends process information to track.
         - Checks if the process is running
@@ -100,52 +101,33 @@ class Client:
         - Handles server response
         '''
 
-        self.client_socket_manager.create_connection()
-        logger.info('Connection established to the server')
-
         _, _, _, limit = self.profile_manager.get_current_profile()
 
-        try:
-            logger.info(f'Getting process information for {args.process}')
-            process_info = self._get_process(args.process)
-
-            if not process_info:
-                raise Exception('The program is not running, please start the application')
-            
-            process_name = process_info['name']    
-            start_time = datetime.now()
-            id = args.name or secrets.token_hex(6)
-
-            logger.info(f'Generated/Provided ID: {id}')
-
-            json_data = {
-                'command': args.command,
-                id: {
-                    'process_name': process_name,
-                    'pid': process_info['pid'],
-                    'track_pid': os.getpid(),
-                    'start_time': start_time.strftime('%Y/%m/%d %H:%M:%S'),
-                    'session_time': time.time(),
-                    'runtime': 0.0,
-                    'status': 'running',
-                    'conn': None
-                }
+        json_data = {
+            'command': 'add',
+            self.id: {
+                'process_name': self.process_name,
+                'pid': self.process_pid if self.process_pid else '--',
+                'track_pid': os.getpid(),
+                'start_time': datetime.now().strftime('%Y/%m/%d %H:%M:%S'),
+                'session_time': time.time() if self.process_pid else None,
+                'runtime': 0.0,
+                'status': 'running' if self.process_pid else 'stopped',
+                'conn': None
             }
+        }
 
+        try:
             logger.info('Sending data to server for tracking...')
             received_data = self.client_socket_manager.send_data(json_data).lower()
 
             if received_data == 'duplicate id':
-                raise Exception(f'Id \'{args.name}\' is already in use')
+                raise Exception(f'Id \'{self.id}\' is already in use')
             elif received_data == 'duplicate process':
-                raise Exception(f'Already tracking \'{process_name}\'')
+                raise Exception(f'Already tracking \'{self.process_name}\'')
             elif received_data == 'limit':
                 process_word = 'process' if limit == 1 else 'processes'
                 raise Exception(f'Maximum process tracking limit exceeded. You can only run up to {limit} {process_word} simultaneously')
-
-            self.process_name = process_name
-            self.process_pid = process_info['pid']    
-            self.start_time = start_time
         except Exception as e:
             logger.error(e)
             self.client_socket_manager.client_socket.close()
@@ -213,26 +195,23 @@ class Client:
         - Puts updates into the message queue
         '''
 
-        event = self.event
-        queue = self.queue
-        start_time = self.start_time
-        process_name = self.process_name
-        process_pid = self.process_pid
+        logger.info(f'Tracking started: {self.process_name}')
 
-        logger.info(f'Tracking started: {process_name}')
-
-        self.log_manager.save_start_time(process_name, start_time)
+        if self.process_pid:
+            self.log_manager.save_start_time(self.process_name, self.start_time)
         
         save_interval = timedelta(minutes=5)
-        next_save = start_time + save_interval
+        next_save = datetime.now() + save_interval
 
         while True:
-            process_info = self._get_process(process_name)
+            process_info = self._get_process(self.process_name)
             now = datetime.now()
 
             if process_info:
-                if process_pid != None and process_pid != process_info['pid']:
-                    logger.info(f'Process {process_name} started')
+                if (self.process_pid is None or 
+                    (self.process_pid is not None and self.process_pid != process_info['pid'])):
+                    
+                    logger.info(f'Process {self.process_name} started')
 
                     json_data = {
                         'command': 'update', 
@@ -240,35 +219,37 @@ class Client:
                         process_info['name']: process_info['pid'],
                         'session_time': time.time()
                     }
-                    queue.put(json_data)
+                    self.queue.put(json_data)
 
-                process_pid = self.process_pid = process_info['pid']
+                self.process_name = process_info['name']
+                self.process_pid = process_info['pid']
 
-                if not start_time:
-                    start_time = self.start_time = now
-                    self.log_manager.save_start_time(process_name, start_time)
-                    next_save = start_time + save_interval
-            elif not process_info and start_time:
-                logger.info(f'Process {process_name} stopped')
+                if not self.start_time:
+                    self.start_time = now
+                    self.log_manager.save_start_time(self.process_name, self.start_time)
+                    next_save = self.start_time + save_interval
+            elif not process_info and self.process_pid and self.start_time:
+                logger.info(f'Process {self.process_name} stopped')
 
                 json_data = {
                     'command': 'update', 
                     'status': 'stopped', 
-                    process_name: None,
+                    self.process_name: None,
                     'session_time': None
                 }
-                queue.put(json_data)
-                self.log_manager.save_end_time(process_name, start_time)
-                start_time = self.start_time = None
+                self.queue.put(json_data)
+                self.log_manager.save_end_time(self.process_name, self.start_time)
+                self.process_pid = None
+                self.start_time = None
 
-            if now >= next_save and start_time:
-                self.log_manager.save_end_time(process_name, start_time)
+            if now >= next_save and self.start_time:
+                self.log_manager.save_end_time(self.process_name, self.start_time)
                 next_save = now + save_interval
             
-            if event.is_set():
-                logger.info(f'Stopping tracking of {process_name}')
-                if start_time:
-                    self.log_manager.save_end_time(process_name, start_time)
+            if self.event.is_set():
+                logger.info(f'Stopping tracking of {self.process_name}')
+                if self.start_time:
+                    self.log_manager.save_end_time(self.process_name, self.start_time)
                 break
                     
             time.sleep(1)
@@ -315,8 +296,27 @@ class Client:
         - Sets up signal and interrupt handlers
         - Runs connection and tracking threads
         ''' 
-        
-        self._notify_socket(args)
+
+        self.client_socket_manager.create_connection()
+        logger.info('Connection established to the server')
+
+        logger.info(f'Getting process information for {args.process}')
+        process_info = self._get_process(args.process)
+
+        if not process_info:
+            logger.info(f'Process information could not be received, waiting for {args.process} to start')
+            self.process_name = args.process
+            self.process_pid = None
+            self.start_time = None
+        else:
+            self.process_name = process_info['name']
+            self.process_pid = process_info['pid']
+            self.start_time = datetime.now()
+            
+        self.id = args.name or secrets.token_hex(6)
+        logger.info(f'Generated/Provided ID: {self.id}')
+
+        self._notify_socket()
         if not is_windows:
             self._signal_handler()
         
