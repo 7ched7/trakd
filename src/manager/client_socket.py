@@ -52,7 +52,7 @@ class ClientSocketManager:
             logger.error(e)
             sys.exit(1)
 
-    def check_if_socket_running(self) -> None:
+    def is_socket_running(self) -> None:
         '''
         Checks if the server is running and prevents connection while the server is active.
         This function raises an exception if the server is already running.
@@ -69,31 +69,33 @@ class ClientSocketManager:
         except KeyboardInterrupt:
             sys.exit(1)
 
-    def check_ip_valid(self) -> bool:
+    def is_ip_valid(self, ip: str, port: int) -> bool:
         '''
         Validates if the IP address and port can be reached and are correct.
         Returns True if the connection can be established, otherwise exits the program with an error.
         '''
 
+        sock = None
+
         try:
-            with socket.create_connection((self.ip, self.port), timeout=self.timeout):
-                return True
-        except ConnectionRefusedError:
-            return True 
-        except socket.timeout:
-            logger.error(f'Connection to {self.ip}:{self.port} timed out. Please check if the server is running and reachable')
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(self.timeout)
+            sock.bind((ip, port))
+            sock.listen(1)
+            return True
+        except PermissionError:
+            logger.error(f'Permission denied on {ip}:{port}')
             sys.exit(1)
         except OSError as e:
-            logger.error(f'Connection error to {self.ip}:{self.port}. Reason: {str(e)}')
-            sys.exit(1)
-        except socket.gaierror:
-            logger.error(f'Invalid IP address or hostname: {self.ip}. Please verify the address')
+            logger.error(f'Failed to bind {ip}:{port}: {str(e)}')
             sys.exit(1)
         except Exception as e:
-            logger.error(f'An error occurred when trying to connect to {self.ip}:{self.port}: {str(e)}')
+            logger.error(f'An error occurred when trying to connect to {ip}:{port}: {str(e)}')
             sys.exit(1)
         except KeyboardInterrupt:
             sys.exit(1)
+        finally:
+            if sock: sock.close()
 
     def send_data(self, data: Union[str, dict], wait_for_response: bool=True, event: Event=None) -> Optional[str]:
         '''
