@@ -379,7 +379,7 @@ class Client:
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
 
-        print(tabulate(rows, headers, tablefmt='simple', numalign='left'))
+        print(tabulate(rows, headers, tablefmt='plain', numalign='left'))
 
     def status_handler(self) -> None:
         '''
@@ -402,7 +402,7 @@ class Client:
 
             print(f'{BOLD}SERVER:{RESET} running')
             print(f'{BOLD}HOST:{RESET} {ip}:{port}')
-            print(f'{BOLD}TRACKED PROCESSES:{RESET} {tracked_processes} { f'{GREEN}({running} running, {stopped} stopped){RESET}' if tracked_processes != 0 else '' } ')
+            print(f'{BOLD}TRACKED PROCESSES:{RESET} {tracked_processes} { f'{GREY}({running} running, {stopped} stopped){RESET}' if tracked_processes != 0 else '' } ')
 
         except json.decoder.JSONDecodeError:
             logger.error(f'There was a problem retrieving the status data, please try again')
@@ -463,7 +463,7 @@ class Client:
                 pl.extend([ '--' if info == None else info for info in process_info.values() ])
                 rows.append(pl)
 
-            print(tabulate(rows, headers, tablefmt='simple', numalign='left'))
+            print(tabulate(rows, headers, tablefmt='plain', numalign='left'), end='\n\n')
         except json.decoder.JSONDecodeError:
             logger.error(f'There was a problem retrieving the tracked programs data, please try again')
             sys.exit(1)
@@ -586,7 +586,7 @@ class Client:
 
         date_str = f'{start_flag.strftime('%Y/%m/%d %H:%M:%S')} - {end_flag.strftime('%Y/%m/%d %H:%M:%S')}'
         print(f'{BOLD}REPORT{RESET} | {date_str}', end='\n\n')
-        print(tabulate(rows, headers, tablefmt='simple', numalign='left'), end='\n\n')
+        print(tabulate(rows, headers, tablefmt='plain', numalign='left'), end='\n\n')
 
         if connection and has_active:
             print(f'{GREY}Note: Durations are updated every 5 minutes.{RESET}')
