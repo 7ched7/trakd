@@ -380,7 +380,7 @@ class Server:
         '''
         Updates the status and PID of a tracked process.
         - Finds the process by name
-        - Updates its 'status' and 'pid' fields in tracked_processes
+        - Updates its "status", "pid", "session_time", and "runtime" fields in tracked_processes
         '''
 
         tracked_processes = self.tracked_processes

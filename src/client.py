@@ -37,7 +37,7 @@ class Client:
         - profile, log, and client socket managers
         - event for thread control
         - message queue
-        - process information (name, PID, start_time)
+        - process information (name, ID, PID, start_time)
         '''
 
         self.profile_manager = ProfileManager()
@@ -110,9 +110,7 @@ class Client:
     def _notify_socket(self) -> None:
         '''
         Establishes initial connection to the server and sends process information to track.
-        - Checks if the process is running
-        - Generates or uses provided ID
-        - Handles server response
+        Handles exceptions related to tracking limits or duplicates.
         '''
 
         _, _, _, limit = self.profile_manager.get_current_profile()
@@ -305,10 +303,9 @@ class Client:
 
     def add_handler(self, args: Namespace) -> None:
         '''
-        Starts the client tracking system.
-        - Establishes connection
-        - Sets up signal and interrupt handlers
-        - Runs connection and tracking threads
+        Handles the process addition logic. Establishes connection to the server, 
+        gets process information and starts tracking the process. It also handles 
+        the signal and connection management.
         ''' 
 
         self.client_socket_manager.create_connection()
@@ -498,8 +495,8 @@ class Client:
 
     def report_handler(self, args: Namespace) -> None:
         '''
-        Generates a report of process run times and active days.
-        It reads log files, calculates time durations and outputs the results in a tabular format.
+        Generates a report of process usage between the specified date range.
+        The report includes total runtime, active days and identifies if any process is currently active.
         '''
 
         username, _, _, _ = self.profile_manager.get_current_profile()
@@ -660,7 +657,6 @@ class Client:
     def _reset_logs(self) -> None:
         '''
         Deletes all log files in the logs directory.
-        Optionally logs each deletion if verbose is True.
         '''
 
         logs_dir = self.log_manager.logs_dir
