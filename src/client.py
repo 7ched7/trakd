@@ -119,7 +119,7 @@ class Client:
             'command': 'add',
             self.id: {
                 'process_name': self.process_name,
-                'pid': self.process_pid if self.process_pid else '--',
+                'pid': self.process_pid,
                 'track_pid': os.getpid(),
                 'start_time': datetime.now().strftime('%Y/%m/%d %H:%M:%S'),
                 'session_time': time.time() if self.process_pid else None,
