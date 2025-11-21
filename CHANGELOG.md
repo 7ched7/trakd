@@ -1,3 +1,14 @@
+## Version 0.5.0 - 11/21/2025
+### Added
+- Show runtime of tracked processes in ps command
+- Show (*) indicator for tracked processes in report command
+- Ability to start tracking even if the process is not running 
+### Improvement
+- Make client-server connection faster 
+- Minor adjustments to CLI outputs
+### Fixed
+- Fix a bug when configuring ip address  
+
 ## Version 0.4.1 - 11/17/2025
 ### Added
 - Support for cross-platform install/remove and enable/disable subcommands (Windows & Linux)

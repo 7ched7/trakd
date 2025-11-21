@@ -1,6 +1,6 @@
 # TRAKD  
 
-![Version](https://img.shields.io/badge/version-0.4.1-blue)
+![Version](https://img.shields.io/badge/version-0.5.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 **Trakd** is a lightweight and socket-based CLI (Command Line Interface) program tracking and time reporting tool. Ideal for anyone looking to better manage their time, understand how much time is spent on different programs, and monitor process activity directly from the terminal.
@@ -19,17 +19,17 @@
 
 1. **Download**
 ```sh
-$ wget https://github.com/7ched7/trakd/releases/download/v0.4.1/trakd-v0.4.1-linux.tar.gz
+$ wget https://github.com/7ched7/trakd/releases/download/v0.5.0/trakd-v0.5.0-linux.tar.gz
 ```
 
 2. **Extract**
 ```sh
-$ tar -xzvf trakd-v0.4.1-linux.tar.gz
+$ tar -xzvf trakd-v0.5.0-linux.tar.gz
 ```
 
 3. **Install**
 ```sh
-$ cd trakd-v0.4.1-linux
+$ cd trakd-v0.5.0-linux
 $ ./install.sh
 ```
 
@@ -44,7 +44,7 @@ $ trakd -v
 <summary>Windows</summary>
 
 1. **Download**
-<br> [Trakd Windows](https://github.com/7ched7/trakd/releases/download/v0.4.1/trakd-v0.4.1-win.zip)
+<br> [Trakd Windows](https://github.com/7ched7/trakd/releases/download/v0.5.0/trakd-v0.5.0-win.zip)
 
 2. **Extract**
 <br> Right-click → **"Extract All..."**
@@ -137,11 +137,10 @@ Detailed view
 
 > **Example output**
 ```sh
-TRACK ID           PROCESS    PID    STARTED              STATUS    CONNECTION
------------------  ---------  -----  -------------------  --------  ---------------
-my_chrome_tracker  chrome     2705   2025/05/28 09:04:36  running   127.0.0.1/47602
-45f6e7c16e87       mongod     2591   2025/05/28 10:22:40  running   127.0.0.1/47612
-2515fc63e592       vim        --     2025/05/28 11:30:12  stopped   127.0.0.1/47618
+TRACK ID           PROCESS    PID    STARTED              RUNTIME     STATUS    CONNECTION
+my_chrome_tracker  chrome     37133  2025/05/28 10:30:42  1h 25m 30s  running   127.0.0.1/59780
+d6213668effb       mongod     37455  2025/05/28 11:22:18  0h 25m 28s  running   127.0.0.1/50936
+41d9a30368f5       vim        --     2025/05/28 11:25:05  0h 22m 08s  stopped   127.0.0.1/50938
 ```
 
 </details>
@@ -169,8 +168,7 @@ Report a specific date range with the --start and --end arguments
 ```sh
 REPORT | 2025/05/21 00:00:00 - 2025/05/27 00:00:00
 
-Process       Total Run Time    Active Days
-------------------------------------------
+PROCESS       TOTAL RUN TIME    ACTIVE DAYS
 chrome        36h 12m 30s       7
 mongod        18h 45m 22s       5
 vim           8h 30m 41s        4
