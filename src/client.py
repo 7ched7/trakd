@@ -609,7 +609,7 @@ class Client:
             logger.error(e)     
             sys.exit(1)
 
-        self.client_socket_manager.check_if_socket_running()
+        self.client_socket_manager.is_socket_running()
 
         target = args.target
         verbose = args.verbose
@@ -706,7 +706,7 @@ class Client:
         - Switches to the new user if requested
         '''
 
-        self.client_socket_manager.check_if_socket_running()        
+        self.client_socket_manager.is_socket_running()        
 
         try:
             username = args.username
@@ -730,7 +730,7 @@ class Client:
         - Validates if the user exists before removing
         '''
 
-        self.client_socket_manager.check_if_socket_running()
+        self.client_socket_manager.is_socket_running()
 
         try:
             username = args.username
@@ -750,7 +750,7 @@ class Client:
         - Validates if the profile exists before switching
         '''
         
-        self.client_socket_manager.check_if_socket_running()
+        self.client_socket_manager.is_socket_running()
 
         try:
             username = args.username
@@ -770,7 +770,7 @@ class Client:
         - Validates if the old user exists before renaming
         '''
 
-        self.client_socket_manager.check_if_socket_running()
+        self.client_socket_manager.is_socket_running()
 
         try:
             old_username, new_username = args.old_username, args.new_username
@@ -862,14 +862,14 @@ class Client:
             sys.exit(1)    
 
         username, ip, port, limit = self.profile_manager.get_current_profile()
-        self.client_socket_manager.check_if_socket_running()
+        self.client_socket_manager.is_socket_running()
 
         i = args.ip or ip
         p = args.port or port
         l = args.limit_max_process or limit
 
         if args.ip or args.port:
-            self.client_socket_manager.check_ip_valid()
+            self.client_socket_manager.is_ip_valid(i, p)
         self.profile_manager.update_profile(username, i, p, l)
 
         if args.verbose:
