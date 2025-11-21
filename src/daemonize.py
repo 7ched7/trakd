@@ -40,18 +40,32 @@ def _unix_daemonize():
     os.dup2(dev_null.fileno(), sys.stdout.fileno())
     os.dup2(dev_null.fileno(), sys.stderr.fileno())
 
-def _windows_detach():
-    cmd = [sys.executable]
+def build_subprocess_command(*args) -> list[str]:
+    if is_frozen:
+        return [sys.executable, *args] 
 
-    if 'server' in sys.argv and 'start' in sys.argv:
-        cmd += [] if is_frozen else [sys.argv[0]]
-        cmd += ['server', 'run'] 
+    if sys.argv[0].endswith('trakd') or sys.argv[0].endswith('trakd.exe'):
+        return [sys.argv[0], *args]
     else:
-        cmd += sys.argv[1:] if is_frozen else sys.argv
-        cmd += ['--fg'] 
+        return [sys.executable, sys.argv[0], *args]
+
+def _windows_detach():
+    if 'server' in sys.argv and 'start' in sys.argv:
+        cmd = build_subprocess_command('server', 'run')
+    else:
+        cmd = build_subprocess_command(*sys.argv[1:], '--fg')
+
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = subprocess.SW_HIDE
     
     subprocess.Popen(
         cmd,
-        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+        creationflags=(
+            subprocess.DETACHED_PROCESS | 
+            subprocess.CREATE_NEW_PROCESS_GROUP |
+            subprocess.CREATE_NO_WINDOW
+        ),
+        startupinfo=startupinfo
     )
     sys.exit(0)
