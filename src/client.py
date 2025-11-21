@@ -11,7 +11,7 @@ import json
 import re
 import dateparser
 from threading import Event
-from queue import Queue
+from queue import Queue, Empty
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 from manager import (
@@ -61,37 +61,51 @@ class Client:
         - Periodically sends ping
         '''
 
-        client_socket = self.client_socket_manager.client_socket
-        queue = self.queue
-        event = self.event
+        last_ping_time = time.time()
+        PING_INTERVAL = 10.0
 
         try:
             logger.info('Connection handler started')
 
-            while not event.is_set():
-                ready_to_read, _, _ = select.select([client_socket], [], [], 1)
+            while not self.event.is_set():
+                now = time.time()
+                ready_to_read, _, _ = select.select([self.client_socket_manager.client_socket], [], [], 1)
 
                 if ready_to_read:
-                    data = client_socket.recv(4096).decode('utf-8')
-                    if data == 'stop':
-                        logger.info('Received stop signal, stopping connection handler')
-                        event.set()
+                    try:
+                        data = self.client_socket_manager.client_socket.recv(4096)
+
+                        if data.decode('utf-8').strip() == 'stop':
+                            logger.info('Received stop signal, stopping connection handler')
+                            self.event.set()
+                            break
+
+                        if not data:
+                            logger.info('Connection closed by remote')
+                            self.event.set()
+                            break
+                    except (ConnectionResetError, OSError):
+                        logger.warning('Connection lost')
+                        self.event.set()
                         break
                 
-                if not queue.empty():
-                    json_data = queue.get()
-                    self.client_socket_manager.send_data(json_data, wait_for_response=False)
-                    continue
+                while not self.queue.empty():
+                    try:
+                        json_data = self.queue.get_nowait()
+                        self.client_socket_manager.send_data(json_data, wait_for_response=False)
+                    except Empty:
+                        break
                 
-                self.client_socket_manager.send_data('ping', wait_for_response=False, event=event)
-                time.sleep(10)
+                if now - last_ping_time >= PING_INTERVAL:
+                    self.client_socket_manager.send_data('ping', wait_for_response=False, event=self.event)
+                    last_ping_time = now                
         except Exception as e:
             logger.error(f'Error during connection control: {e}')
             sys.exit(1)
         finally:
-            event.set()
+            self.event.set()
             logger.info('Closing client socket')
-            client_socket.close()
+            self.client_socket_manager.client_socket.close()
 
     def _notify_socket(self) -> None:
         '''
